@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Access — National Tenders Portal</title>
+    <link rel="icon" type="image/png" href="Image/Logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="title" content="National Tenders Portal — Access Request">
+    <meta name="description" content="Request secure access to the National Tenders Portal. Complete the form and our procurement team will verify your credentials.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://tenders.gov.za/request-access">
+    <meta property="og:title" content="National Tenders Portal — Access Request">
+    <meta property="og:description" content="Request your supplier or evaluator account for the National Tenders Portal.">
+    <meta property="og:image" content="https://i.pinimg.com/736x/83/5b/41/835b41a0ae0b33ec73cc03a225429dc0.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="National Tenders Portal — Access Request">
+    <meta name="twitter:description" content="Request your tenders portal access now.">
+    <meta name="twitter:image" content="https://i.pinimg.com/736x/83/5b/41/835b41a0ae0b33ec73cc03a225429dc0.jpg">
+    <meta name="theme-color" content="#0A0C10">
+    <meta name="author" content="National Procurement Authority">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .video-vignette {
+            background: radial-gradient(circle, rgba(10, 12, 16, 0) 0%, rgba(10, 12, 16, 0.8) 100%);
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            8%, 32%, 56%, 80% { transform: translateX(-5px); }
+            16%, 40%, 64%, 88% { transform: translateX(5px); }
+            24%, 48%, 72% { transform: translateX(-3px); }
+        }
+        @keyframes slideDownBounce {
+            0% { transform: translateY(-16px); opacity: 0; }
+            50% { transform: translateY(4px); opacity: 1; }
+            70% { transform: translateY(-3px); }
+            85% { transform: translateY(1px); }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeSlideDown {
+            0% { transform: translateY(-8px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 0 rgba(34, 197, 94, 0.12), 0 4px 16px rgba(34, 197, 94, 0.06); }
+            50% { box-shadow: 0 0 18px rgba(34, 197, 94, 0.28), 0 6px 24px rgba(34, 197, 94, 0.14); }
+        }
+        @keyframes errorGlowPulse {
+            0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0.10), 0 4px 16px rgba(239, 68, 68, 0.04); }
+            50% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.22), 0 6px 20px rgba(239, 68, 68, 0.10); }
+        }
+        @keyframes drawCircle { to { stroke-dashoffset: 0; } }
+        @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.25); opacity: 1; }
+            80% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes scaleInX {
+            0% { transform: scale(0) rotate(-90deg); opacity: 0; }
+            55% { transform: scale(1.2) rotate(8deg); opacity: 1; }
+            75% { transform: scale(0.9) rotate(-4deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-shake { animation: shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+        .animate-slide-down-bounce { animation: slideDownBounce 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+        .animate-fade-slide-down { animation: fadeSlideDown 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
+        .animate-glow-pulse { animation: glowPulse 2.2s ease-in-out infinite; }
+        .animate-error-glow-pulse { animation: errorGlowPulse 1.8s ease-in-out infinite; }
+        .animate-scale-in { animation: scaleIn 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+        .animate-scale-in-x { animation: scaleInX 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+        .checkmark-circle { stroke-dasharray: 75.4; stroke-dashoffset: 75.4; animation: drawCircle 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.15s forwards; }
+        .checkmark-path { stroke-dasharray: 18; stroke-dashoffset: 18; animation: drawCheck 0.35s cubic-bezier(0.22, 0.61, 0.36, 1) 0.4s forwards; }
+        .error-circle { stroke-dasharray: 75.4; stroke-dashoffset: 75.4; animation: drawCircle 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) 0.05s forwards; }
+        .btn-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #ffffff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+        .feedback-container { transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.3s ease; overflow: hidden; }
+        .feedback-container.collapsed { max-height: 0; opacity: 0; margin-top: 0; margin-bottom: 0; }
+        .feedback-container.expanded { max-height: 140px; opacity: 1; }
+    </style>
+</head>
+<body class="font-light">
+    <div class="flex min-h-screen bg-white">
+
+        <!-- LEFT PANEL — Tenders Portal branding & access request form -->
+        <div class="flex flex-col w-full bg-white lg:w-[40%] xl:w-[35%] px-8 md:px-16 py-10">
+
+            <!-- Logo — National Tenders Portal identity -->
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 bg-[#1A1C21] rounded-lg flex items-center justify-center">
+                    <span class="text-white text-[9px] font-extrabold italic">NT</span>
+                </div>
+                <span class="text-sm font-semibold tracking-tight text-[#1A1C21]">TENDERS <span class="text-slate-400 font-light">PORTAL</span></span>
+            </div>
+
+            <!-- Form — centred vertically with tender-specific copy -->
+            <div class="flex flex-col justify-center flex-1 py-8">
+                <div class="max-w-[320px] mx-auto w-full">
+                    <header class="mb-8">
+                        <h1 class="text-3xl font-extralight text-[#1A1C21] tracking-tight">Request Supplier Access</h1>
+                        <p class="text-[13px] text-slate-500 mt-2 leading-relaxed font-normal">Submit your details to join the National Tenders Portal. Our procurement team will verify and activate your account within 24 hours.</p>
+                        <div id="request-feedback" class="feedback-container collapsed mt-4"></div>
+                    </header>
+
+                    <form id="accessRequestForm" class="space-y-5">
+                        <div>
+                            <label for="fullname" class="block mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Full Legal Name</label>
+                            <input type="text" id="fullname" name="fullname" required autofocus placeholder="Thabo Nkosi" autocomplete="name"
+                                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-400 transition-all text-[13px] font-normal">
+                        </div>
+                        <div>
+                            <label for="request_email" class="block mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Official Email Address</label>
+                            <input type="email" id="request_email" name="email" required placeholder="procurement@yourcompany.com" autocomplete="email"
+                                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-400 transition-all text-[13px]">
+                        </div>
+                        <div>
+                            <label for="organization" class="block mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Organization / Registered Vendor</label>
+                            <input type="text" id="organization" name="organization" required placeholder="Your Company (Pty) Ltd" autocomplete="organization"
+                                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-400 transition-all text-[13px]">
+                        </div>
+                        <div>
+                            <label for="job_role" class="block mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Designation / Role (optional)</label>
+                            <input type="text" id="job_role" name="job_role" placeholder="Tender Manager / Compliance Officer"
+                                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-400 transition-all text-[13px]">
+                        </div>
+                        <div class="pt-2">
+                            <button type="submit" id="submitBtn" class="w-full py-3.5 bg-[#1A1C21] hover:bg-black text-white text-[13px] font-bold rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                                <span id="btnText">Submit Request →</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="relative my-8">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-100"></div></div>
+                        <div class="relative flex justify-center text-[9px] uppercase tracking-[0.2em] font-extrabold text-slate-300">
+                            <span class="px-4 bg-white">Secure Onboarding</span>
+                        </div>
+                    </div>
+
+                    <button onclick="window.location.href='./';" class="flex items-center justify-center w-full py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-[13px] font-bold text-slate-700">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        Back to Login
+                    </button>
+
+                    <p class="mt-8 text-center text-[11px] text-slate-400 font-normal">All data protected under National Procurement Authority security policies.</p>
+                </div>
+            </div>
+
+            <!-- Bottom spacer -->
+            <div class="h-7"></div>
+        </div>
+
+        <!-- RIGHT PANEL — Tenders Portal messaging -->
+        <div class="hidden lg:block lg:flex-1 relative overflow-hidden bg-[#0A0C10]">
+            <video autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-40">
+                <source src="static/video/bg-video.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 video-vignette"></div>
+            <div class="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
+                <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[40px] max-w-sm">
+                    <div class="mb-8">
+                        <h2 class="text-white text-3xl font-extralight tracking-tighter mb-4">Transparent Procurement.</h2>
+                        <div class="h-0.5 w-12 bg-red-600 rounded-full mx-auto"></div>
+                    </div>
+                    <p class="text-slate-300 text-[14px] leading-relaxed font-light">Gain access to national tenders, submit competitive bids, and track contract awards — all through a single, secure portal.</p>
+                </div>
+            </div>
+            <div class="absolute bottom-10 left-10 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Access Portal // v2.1.0</div>
+        </div>
+    </div>
+
+    <script>
+        const feedbackDiv = document.getElementById('request-feedback');
+        let feedbackTimeout = null;
+
+        function showMessage(msg, isError = true) {
+            if (feedbackTimeout) { clearTimeout(feedbackTimeout); feedbackTimeout = null; }
+            feedbackDiv.classList.remove('animate-shake','animate-slide-down-bounce','animate-fade-slide-down','animate-glow-pulse','animate-error-glow-pulse','collapsed','expanded');
+            void feedbackDiv.offsetWidth;
+            let iconHtml = '', containerClasses = '', textColor = '', borderColor = '', bgColor = '';
+            if (isError) {
+                bgColor = 'bg-red-50/95'; borderColor = 'border-red-300'; textColor = 'text-red-800';
+                containerClasses = 'animate-fade-slide-down animate-error-glow-pulse';
+                iconHtml = `<div class="flex-shrink-0 animate-scale-in-x" style="width:28px;height:28px;"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" fill="#FEE2E2" stroke="#FCA5A5" stroke-width="2" class="error-circle" style="stroke-dasharray:75.4;stroke-dashoffset:75.4;" /><g transform="translate(14,14)" class="animate-scale-in-x" style="animation-delay:0.2s;"><line x1="-5" y1="-5" x2="5" y2="5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" /><line x1="5" y1="-5" x2="-5" y2="5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" /></g></svg></div>`;
+            } else {
+                bgColor = 'bg-green-50/95'; borderColor = 'border-green-300'; textColor = 'text-green-800';
+                containerClasses = 'animate-slide-down-bounce animate-glow-pulse';
+                iconHtml = `<div class="flex-shrink-0 animate-scale-in" style="width:28px;height:28px;"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" fill="#DCFCE7" stroke="#4ADE80" stroke-width="2" class="checkmark-circle" style="stroke-dasharray:75.4;stroke-dashoffset:75.4;" /><path d="M8 14.5L12.5 19L20 10" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" class="checkmark-path" style="stroke-dasharray:18;stroke-dashoffset:18;" /></svg></div>`;
+            }
+            feedbackDiv.innerHTML = `<div class="flex items-center gap-3 p-3.5 rounded-xl border ${bgColor} ${borderColor} backdrop-blur-sm">${iconHtml}<p class="text-[12px] font-semibold ${textColor} leading-snug">${msg}</p></div>`;
+            feedbackDiv.classList.add(...containerClasses.split(' '));
+            feedbackDiv.classList.add('expanded');
+            feedbackDiv.classList.remove('collapsed');
+            if (isError) {
+                feedbackTimeout = setTimeout(() => { feedbackDiv.classList.remove('animate-fade-slide-down'); void feedbackDiv.offsetWidth; feedbackDiv.classList.add('animate-shake'); }, 40);
+            }
+        }
+
+        function hideMessage() {
+            if (feedbackTimeout) { clearTimeout(feedbackTimeout); feedbackTimeout = null; }
+            feedbackDiv.classList.add('collapsed');
+            feedbackDiv.classList.remove('expanded');
+            setTimeout(() => {
+                if (feedbackDiv.classList.contains('collapsed')) {
+                    feedbackDiv.classList.remove('animate-shake','animate-slide-down-bounce','animate-fade-slide-down','animate-glow-pulse','animate-error-glow-pulse');
+                    feedbackDiv.innerHTML = '';
+                }
+            }, 400);
+        }
+
+        const form = document.getElementById('accessRequestForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnTextSpan = document.getElementById('btnText');
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideMessage();
+            const fullname = document.getElementById('fullname').value.trim();
+            const email = document.getElementById('request_email').value.trim().toLowerCase();
+            const organization = document.getElementById('organization').value.trim();
+            const jobRole = document.getElementById('job_role').value.trim();
+            if (!fullname || !email || !organization) {
+                showMessage('Please provide your full name, email address, and organization name.', true);
+                return;
+            }
+            if (!/^\S+@\S+\.\S+$/.test(email)) {
+                showMessage('Please enter a valid official email address.', true);
+                return;
+            }
+            submitBtn.disabled = true;
+            btnTextSpan.innerHTML = '<span class="btn-spinner"></span> Submitting request...';
+            try {
+                const formData = new FormData();
+                formData.append('action', 'request_access');
+                formData.append('fullname', fullname);
+                formData.append('email', email);
+                formData.append('organization', organization);
+                formData.append('job_role', jobRole);
+                const response = await fetch('api/request_access.php', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    let errorMsg = `HTTP ${response.status}`;
+                    try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch(_) {}
+                    throw new Error(errorMsg);
+                }
+                const data = await response.json();
+                if (data.success) {
+                    showMessage(data.message || 'Access request submitted successfully! Check your email for confirmation and next steps.', false);
+                    btnTextSpan.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Request sent';
+                    form.reset();
+                    setTimeout(() => { btnTextSpan.innerHTML = 'Submit Request →'; submitBtn.disabled = false; }, 2500);
+                } else {
+                    showMessage(data.error || 'Unable to process request. Please try again later or contact procurement support.', true);
+                    btnTextSpan.innerHTML = 'Submit Request →';
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                console.error('Request error:', err);
+                showMessage('Connection error. Please verify your network or reach out to the procurement helpdesk.', true);
+                btnTextSpan.innerHTML = 'Submit Request →';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Clear error messages on input
+        ['fullname','request_email','organization','job_role'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', () => { if (feedbackDiv.classList.contains('expanded') && feedbackDiv.innerHTML.includes('text-red-800')) hideMessage(); });
+        });
+    </script>
+</body>
+</html>

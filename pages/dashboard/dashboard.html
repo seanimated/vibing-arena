@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SA Tender Portal · Admin Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/png" href="../../static/image/favicon.png">
+  <script>
+    (function() {
+      try { if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark'); } catch(e) {}
+    })();
+  </script>
+
+<style>
+  :root {
+    --navy:    #0B1222;
+    --navy2:   #111827;
+    --gold:    #D4A853;
+    --gold2:   #F0C97A;
+    --emerald: #0F7960;
+    --emerald2:#14A87D;
+    --red:     #C0392B;
+    --slate:   #1E2A3A;
+    --slate2:  #243447;
+    --text:    #E8EDF5;
+    --muted:   #8A9BB5;
+    --border:  rgba(212,168,83,0.15);
+    --border2: rgba(255,255,255,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+  /* Grid pattern background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(212,168,83,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,168,83,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--navy2);
+    border-right: 1px solid var(--border);
+    scrollbar-width: none;
+    position: relative;
+    z-index: 10;
+  }
+  .sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 1px; height: 100%;
+    background: linear-gradient(180deg, transparent, var(--gold) 40%, transparent);
+    opacity: 0.3;
+  }
+
+  .sidebar::-webkit-scrollbar { display: none; }
+
+  /* Nav items */
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 400;
+    color: var(--muted);
+    transition: all 0.2s ease;
+    cursor: pointer; text-decoration: none;
+    position: relative;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active {
+    color: var(--gold);
+    background: rgba(212,168,83,0.08);
+    font-weight: 500;
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 60%; background: var(--gold); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .bi { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+
+  .nav-section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: rgba(138,155,181,0.5);
+    padding: 6px 14px; margin-top: 16px; font-family: 'Syne', sans-serif;
+  }
+
+  /* Header */
+  header {
+    background: rgba(11,18,34,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 40;
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; font-family: 'Syne', sans-serif;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--gold2);
+    box-shadow: 0 0 6px var(--gold2);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* KPI Cards */
+  .kpi-card {
+    background: var(--slate);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .kpi-card:hover {
+    border-color: rgba(212,168,83,0.25);
+    transform: translateY(-2px);
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .kpi-card:hover::before { opacity: 1; }
+  .kpi-card .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px; font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .kpi-card .kpi-icon {
+    position: absolute; right: 20px; top: 20px;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+  }
+  .kpi-card .kpi-sub {
+    margin-top: 12px;
+    font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  /* Alert KPI (pending, urgent) */
+  .kpi-alert { border-color: rgba(212,168,83,0.3); }
+  .kpi-alert .kpi-value { color: var(--gold2); }
+
+  /* Danger KPI */
+  .kpi-danger { border-color: rgba(192,57,43,0.3); }
+  .kpi-danger .kpi-value { color: #E74C3C; }
+
+  /* Success KPI */
+  .kpi-success { border-color: rgba(15,121,96,0.3); }
+  .kpi-success .kpi-value { color: var(--emerald2); }
+
+  /* Panel cards */
+  .panel {
+    background: var(--slate);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: between;
+  }
+  .panel-title .dot-accent {
+    width: 6px; height: 6px; background: var(--gold); border-radius: 50%;
+    margin-right: 8px; flex-shrink: 0;
+  }
+
+  /* Bar chart */
+  .bar-wrap {
+    display: flex; align-items: flex-end; gap: 6px;
+    height: 120px; padding-bottom: 4px;
+  }
+  .bar-col {
+    flex: 1; border-radius: 4px 4px 0 0;
+    background: var(--slate2);
+    position: relative; cursor: pointer;
+    transition: background 0.2s; min-height: 4px;
+  }
+  .bar-col:hover { background: var(--gold) !important; }
+  .bar-col .bar-tip {
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: var(--gold); color: var(--navy);
+    font-size: 9px; font-weight: 700; font-family: 'Syne', sans-serif;
+    padding: 3px 7px; border-radius: 4px; white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity 0.15s;
+  }
+  .bar-col:hover .bar-tip { opacity: 1; }
+
+  /* Donut */
+  #donut-arc { transition: stroke-dashoffset 1.4s cubic-bezier(0.4,0,0.2,1); }
+
+  /* Activity feed */
+  .activity-feed { border-left: 1px solid var(--border); margin-left: 8px; }
+  .activity-item { position: relative; padding-left: 20px; margin-bottom: 18px; }
+  .activity-dot {
+    position: absolute; left: -5px; top: 3px;
+    width: 9px; height: 9px; border-radius: 50%;
+    border: 2px solid var(--navy);
+  }
+
+  /* Source health table */
+  .health-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border2);
+    font-size: 12px;
+  }
+  .health-row:last-child { border-bottom: none; }
+  .health-status {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .h-ok   { background: var(--emerald2); box-shadow: 0 0 5px var(--emerald2); }
+  .h-fail { background: #E74C3C; box-shadow: 0 0 5px #E74C3C; }
+  .h-idle { background: var(--muted); }
+
+  /* Horizontal progress bars */
+  .hbar-track {
+    flex: 1; height: 5px; background: var(--slate2); border-radius: 99px; overflow: hidden;
+  }
+  .hbar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--emerald), var(--emerald2));
+    border-radius: 99px; transition: width 1s ease;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+    font-family: 'Syne', sans-serif; letter-spacing: 0.05em;
+  }
+  .badge-gold    { background: rgba(212,168,83,0.15); color: var(--gold2); border: 1px solid rgba(212,168,83,0.2); }
+  .badge-red     { background: rgba(192,57,43,0.15); color: #E57373; border: 1px solid rgba(192,57,43,0.2); }
+  .badge-green   { background: rgba(15,121,96,0.15); color: var(--emerald2); border: 1px solid rgba(15,121,96,0.2); }
+  .badge-muted   { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border2); }
+
+  /* Quick actions */
+  .quick-action {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border2);
+    cursor: pointer; text-decoration: none;
+    transition: all 0.2s;
+    font-size: 12px; font-weight: 500; color: var(--muted);
+  }
+  .quick-action:hover {
+    background: rgba(212,168,83,0.07);
+    border-color: rgba(212,168,83,0.25);
+    color: var(--gold2);
+  }
+  .quick-action .qa-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .quick-action:hover .qa-icon { background: rgba(212,168,83,0.12); }
+
+  /* Skeleton */
+  .sk {
+    background: linear-gradient(90deg, var(--slate) 25%, var(--slate2) 50%, var(--slate) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* Scraper running animation */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    background: var(--slate); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 8px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Mobile */
+  @media (max-width: 1023px) {
+    .sidebar-hidden { transform: translateX(-100%); }
+  }
+
+  [x-cloak] { display: none !important; }
+  .no-tr, .no-tr * { transition: none !important; }
+</style>
+</head>
+
+<body
+  x-data="tenderPortal()"
+  x-init="init()"
+  class="no-tr">
+
+  <!-- Preloader -->
+  <div x-show="loading" x-cloak
+       class="fixed inset-0 z-[99999] flex items-center justify-center"
+       style="background:var(--navy)">
+    <div style="width:48px;height:48px;border:3px solid rgba(212,168,83,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  </div>
+
+  <div class="flex h-screen overflow-hidden relative z-10">
+
+<!-- ── SIDEBAR ── -->
+<aside
+  :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+  class="sidebar fixed lg:static top-0 left-0 z-50 h-screen w-[248px] flex flex-col flex-shrink-0 transition-transform duration-300 overflow-y-auto"
+>
+
+  <!-- Logo -->
+  <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color:var(--border)">
+    
+    <!-- Logo Box -->
+    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center overflow-hidden">
+      <img 
+        src="../../static/image/logo.png" 
+        alt="Logo" 
+        class="w-full h-full object-contain p-1"
+      >
+    </div>
+
+    <!-- Brand Text -->
+    <div class="leading-tight">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.02em">
+        Tender Portal
+      </div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.08em">
+        Admin Panel
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Nav -->
+  <nav class="px-3 py-4 flex-1">
+
+    <!-- Dashboard -->
+    <a href="#" class="nav-item active">
+      <i class="bi bi-speedometer2"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <div class="nav-section-label">Operations</div>
+
+    <a href="../operations/operations.html" class="nav-item">
+      <i class="bi bi-inbox"></i>
+      <span>Tender Manager</span>
+      <span class="badge badge-gold ml-auto" x-text="stats.pending_tenders ?? '…'"></span>
+    </a>
+
+    <div class="nav-section-label">Tracker</div>
+
+    <a href="../audits/audits.html" class="nav-item">
+      <i class="bi bi-clipboard-check"></i>
+      <span>Audits Tracker</span>
+    </a>
+
+    <div class="nav-section-label">Administration</div>
+
+    <a href="../users/users.html" class="nav-item">
+      <i class="bi bi-people"></i>
+      <span>User Management</span>
+    </a>
+
+    <div class="nav-section-label">Support</div>
+
+    <a href="../support/support.html" class="nav-item">
+      <i class="bi bi-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+
+  </nav>
+
+  <!-- User -->
+  <div class="px-3 py-4 border-t" style="border-color:var(--border)">
+    <div class="nav-item" style="cursor:default">
+
+      <div 
+        class="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center text-[11px] font-bold text-[var(--navy)]"
+        x-text="getUserInitials()"
+      >
+        SA
+      </div>
+
+      <div class="min-w-0">
+        <div class="text-[12px] font-medium text-[var(--text)] truncate" x-text="userName">
+          System Admin
+        </div>
+        <div class="text-[10px] text-[var(--muted)]" x-text="userRole">
+          Super Admin
+        </div>
+      </div>
+
+      <a
+        href="#"
+        @click.prevent="logout()"
+        class="ml-auto text-[var(--muted)] text-[14px] hover:text-red-400 transition-colors"
+      >
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+
+    </div>
+  </div>
+
+</aside>
+
+    <!-- Mobile overlay -->
+    <div @click="sidebarOpen=false" x-show="sidebarOpen"
+         class="fixed inset-0 z-40 lg:hidden" style="background:rgba(0,0,0,0.6)" x-cloak></div>
+
+    <!-- ── MAIN CONTENT ── -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between px-5 py-3">
+        <div class="flex items-center gap-3">
+          <button @click="sidebarOpen=!sidebarOpen"
+                  class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg"
+                  style="background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-list" style="color:var(--text)"></i>
+          </button>
+          <div>
+            <h1 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.3px">Enterprise Dashboard</h1>
+            <p style="font-size:11px;color:var(--muted)">South Africa Tender Intelligence Platform</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- API Status -->
+          <div class="status-pill">
+            <span class="status-dot"
+                  :style="apiStatus==='error' ? 'background:#E74C3C;box-shadow:0 0 6px #E74C3C' : (apiStatus==='loading' ? 'background:var(--muted);animation:none' : '')"></span>
+            <span style="color:var(--muted)" x-text="apiStatusText">Connecting…</span>
+          </div>
+
+          <div x-show="lastUpdated" style="font-size:10px;color:var(--muted)" class="hidden sm:block" x-text="lastUpdated"></div>
+
+          <!-- Notifications -->
+          <button style="display:none" class="relative" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-bell" style="color:var(--muted);font-size:15px"></i>
+            <span x-show="stats.pending_access_requests > 0"
+                  style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#E74C3C;border-radius:50%;font-size:9px;font-weight:700;font-family:'Syne',sans-serif;color:#fff;display:flex;align-items:center;justify-content:center"
+                  x-text="stats.pending_access_requests"></span>
+          </button>
+
+          <!-- Refresh -->
+          <button @click="fetchDashboard()"
+                  style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-arrow-clockwise" :class="apiStatus==='loading' ? 'spin' : ''" style="color:var(--muted);font-size:15px"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dashboard Body -->
+      <main class="flex-1 overflow-y-auto px-5 pb-8" style="background:transparent">
+
+        <!-- API Error -->
+        <div x-show="apiStatus==='error'" x-cloak
+             class="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
+             style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3)">
+          <div class="flex items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#E74C3C"></i>
+            <span style="font-size:13px;color:#E57373" x-text="apiError || 'Could not reach dashboard.php'"></span>
+          </div>
+          <button @click="fetchDashboard()"
+                  style="background:#C0392B;color:#fff;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:'Syne',sans-serif">
+            Retry
+          </button>
+        </div>
+
+        <!-- ── ROW 1: Page header ── -->
+        <div class="flex items-center justify-between mb-6 pt-2">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);font-family:'Syne',sans-serif;margin-bottom:4px">Superuser View</div>
+            <div style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);letter-spacing:-0.5px">Operational Intelligence</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-family:'Syne',sans-serif">System</span>
+            <span class="badge badge-green">Operational</span>
+          </div>
+        </div>
+
+        <!-- ── ROW 2: Primary KPIs ── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+
+          <div class="kpi-card kpi-alert">
+            <div class="kpi-label">Pending Review</div>
+            <div class="kpi-value" x-text="stats.pending_tenders ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(212,168,83,0.1)">
+              <i class="bi bi-inbox" style="color:var(--gold)"></i>
+            </div>
+            <div class="kpi-sub">
+              <i class="bi bi-exclamation-circle" style="color:var(--gold)"></i>
+              Awaiting admin action
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-success">
+            <div class="kpi-label">Live Tenders</div>
+            <div class="kpi-value" x-text="stats.live_tenders ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(15,121,96,0.1)">
+              <i class="bi bi-send-check" style="color:var(--emerald2)"></i>
+            </div>
+            <div class="kpi-sub">
+              <i class="bi bi-globe" style="color:var(--emerald2)"></i>
+              Published to applicants
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Scraped Today</div>
+            <div class="kpi-value" x-text="stats.tenders_scraped_today ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(255,255,255,0.04)">
+              <i class="bi bi-robot" style="color:var(--muted)"></i>
+            </div>
+            <div class="kpi-sub">
+              <i class="bi bi-arrow-clockwise" style="color:var(--muted)"></i>
+              Bot collections today
+            </div>
+          </div>
+
+          <div class="kpi-card" :class="stats.scraper_failures_today > 0 ? 'kpi-danger' : ''">
+            <div class="kpi-label">Scraper Failures</div>
+            <div class="kpi-value" x-text="stats.scraper_failures_today ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(192,57,43,0.08)">
+              <i class="bi bi-exclamation-octagon" :style="stats.scraper_failures_today > 0 ? 'color:#E74C3C' : 'color:var(--muted)'"></i>
+            </div>
+            <div class="kpi-sub">
+              <i class="bi bi-info-circle" style="color:var(--muted)"></i>
+              Jobs failed today
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ROW 3: Secondary KPIs ── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+          <div class="kpi-card">
+            <div class="kpi-label">Under Review</div>
+            <div class="kpi-value" style="font-size:28px" x-text="stats.under_review ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(255,255,255,0.03)">
+              <i class="bi bi-eye" style="color:var(--muted)"></i>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Approved Today</div>
+            <div class="kpi-value" style="font-size:28px" x-text="stats.approved_today ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(15,121,96,0.08)">
+              <i class="bi bi-check-circle" style="color:var(--emerald2)"></i>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Total Applicants</div>
+            <div class="kpi-value" style="font-size:28px" x-text="stats.total_applicants ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(255,255,255,0.03)">
+              <i class="bi bi-people" style="color:var(--muted)"></i>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-alert">
+            <div class="kpi-label">Access Requests</div>
+            <div class="kpi-value" style="font-size:28px" x-text="stats.pending_access_requests ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(212,168,83,0.08)">
+              <i class="bi bi-shield-exclamation" style="color:var(--gold)"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ROW 4: Charts + Scraper Health ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+          <!-- Monthly tenders bar chart -->
+          <div class="panel lg:col-span-2">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Tenders Scraped · Last 12 Months
+            </div>
+            <div class="bar-wrap" id="monthly-chart">
+              <template x-for="n in 12" :key="n">
+                <div class="bar-col sk" style="height:60%"></div>
+              </template>
+            </div>
+            <div id="monthly-labels" class="flex justify-between mt-3"
+                 style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:'Syne',sans-serif"></div>
+          </div>
+
+          <!-- Donut: published vs pending -->
+          <div class="panel flex flex-col">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Approval Rate
+            </div>
+            <div class="flex-1 flex items-center justify-center">
+              <div class="relative">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12"/>
+                  <circle id="donut-arc" cx="60" cy="60" r="48" fill="none"
+                          stroke="url(#goldGrad)" stroke-width="12"
+                          stroke-linecap="round"
+                          stroke-dasharray="301.59 301.59"
+                          stroke-dashoffset="301.59"
+                          transform="rotate(-90 60 60)"/>
+                  <defs>
+                    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#D4A853"/>
+                      <stop offset="100%" stop-color="#F0C97A"/>
+                    </linearGradient>
+                  </defs>
+                  <text x="60" y="56" text-anchor="middle"
+                        fill="#E8EDF5" font-size="18" font-weight="700"
+                        font-family="Syne, sans-serif" id="donut-label">—</text>
+                  <text x="60" y="70" text-anchor="middle"
+                        fill="#8A9BB5" font-size="8" font-weight="600"
+                        font-family="Syne, sans-serif" letter-spacing="1">APPROVED</text>
+                </svg>
+              </div>
+            </div>
+            <div class="mt-2 space-y-2">
+              <div class="flex justify-between" style="font-size:11px">
+                <span style="color:var(--muted)">Pushed to app</span>
+                <span style="color:var(--gold2);font-weight:600" id="donut-live">—</span>
+              </div>
+              <div style="width:100%;height:4px;background:rgba(255,255,255,0.05);border-radius:99px;overflow:hidden">
+                <div id="donut-bar" style="height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:99px;width:0%;transition:width 1.2s ease"></div>
+              </div>
+              <div class="flex justify-between" style="font-size:10px;color:var(--muted)">
+                <span>Of total scraped tenders</span>
+                <span id="donut-total">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ROW 5: Scraper Source Health + Tender Categories ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+
+          <!-- Source health -->
+          <div class="panel">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Scraper Source Health
+              <span x-show="stats.scrapers_running > 0" class="ml-auto badge badge-green">
+                <span class="spin" style="font-size:9px">◌</span> Running
+              </span>
+            </div>
+            <div id="source-health" class="space-y-0">
+              <template x-for="n in 5" :key="n">
+                <div class="health-row">
+                  <div class="sk" style="width:8px;height:8px;border-radius:50%"></div>
+                  <div class="sk flex-1" style="height:11px"></div>
+                  <div class="sk" style="width:60px;height:11px"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Tenders by category -->
+          <div class="panel">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Tenders by Category
+            </div>
+            <div id="category-bars" class="space-y-3">
+              <template x-for="n in 5" :key="n">
+                <div class="flex items-center gap-3">
+                  <div class="sk" style="width:100px;height:11px;border-radius:4px"></div>
+                  <div class="sk flex-1" style="height:4px;border-radius:99px"></div>
+                  <div class="sk" style="width:24px;height:11px;border-radius:4px"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ROW 6: Applications + Quick Actions + Activity ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-5">
+
+          <!-- Applications pipeline -->
+          <div class="panel">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Applications Today
+            </div>
+            <div class="text-center py-4">
+              <div style="font-family:'Syne',sans-serif;font-size:42px;font-weight:700;color:var(--gold2);letter-spacing:-2px;line-height:1"
+                   x-text="stats.applications_today ?? '…'">—</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:6px">New submissions</div>
+            </div>
+            <div class="mt-4 space-y-2">
+              <div class="flex justify-between" style="font-size:11px">
+                <span style="color:var(--muted)">Expired not closed</span>
+                <span class="badge badge-red" x-text="stats.expired_not_closed ?? '—'">—</span>
+              </div>
+              <div class="flex justify-between" style="font-size:11px">
+                <span style="color:var(--muted)">Duplicates today</span>
+                <span class="badge badge-muted" x-text="stats.duplicates_today ?? '—'">—</span>
+              </div>
+              <div class="flex justify-between" style="font-size:11px;padding-top:4px;border-top:1px solid var(--border2);margin-top:8px">
+                <span style="color:var(--muted)">Scrapers active</span>
+                <span class="badge badge-green" x-text="(stats.scrapers_running ?? 0) + ' running'">—</span>
+              </div>
+            </div>
+            <a href="../operations/operations.html" class="quick-action mt-4" style="justify-content:center">
+              <i class="bi bi-arrow-right-circle"></i> View Pipeline
+            </a>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="panel">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Quick Actions
+            </div>
+<div class="space-y-2">
+  <a href="../operations/operations.html" class="quick-action">
+    <div class="qa-icon">
+      <i class="bi bi-robot" style="color:var(--gold)"></i>
+    </div>
+    <span>Run Operations</span>
+  </a>
+
+  <a href="../audits/audits.html" class="quick-action">
+    <div class="qa-icon">
+      <i class="bi bi-clipboard-check" style="color:var(--muted)"></i>
+    </div>
+    <span>Review Audits</span>
+  </a>
+
+  <a href="../users/users.html" class="quick-action">
+    <div class="qa-icon">
+      <i class="bi bi-person-plus" style="color:var(--muted)"></i>
+    </div>
+    <span>Add Admin</span>
+  </a>
+
+  <a href="../support/support.html" class="quick-action">
+    <div class="qa-icon">
+      <i class="bi bi-question-circle" style="color:var(--muted)"></i>
+    </div>
+    <span>Help</span>
+  </a>
+</div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="panel lg:col-span-2">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Recent Activity
+            </div>
+            <div class="activity-feed ml-1" id="activity-feed">
+              <template x-for="n in 5" :key="n">
+                <div class="activity-item">
+                  <div class="activity-dot sk" style="width:9px;height:9px"></div>
+                  <div class="sk" style="width:60%;height:11px;border-radius:4px;margin-bottom:6px"></div>
+                  <div class="sk" style="width:40%;height:9px;border-radius:4px"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="showToast" x-cloak class="toast">
+    <i class="bi" :class="toastIcon"></i>
+    <span x-text="toastMsg"></span>
+  </div>
+
+<script>
+  const API = 'dashboard.php';
+  const REFRESH = 60000;
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function rel(iso) {
+    if (!iso) return '';
+    const m = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+
+  function renderMonthly(data) {
+    const el = document.getElementById('monthly-chart');
+    const lb = document.getElementById('monthly-labels');
+    if (!el) return;
+    el.innerHTML = ''; lb.innerHTML = '';
+    if (!data?.length) {
+      el.innerHTML = '<p style="font-size:11px;color:var(--muted);margin:auto">No data</p>';
+      return;
+    }
+    const max = Math.max(...data.map(d => d.count ?? d.revenue ?? 0), 1);
+    data.forEach(d => {
+      const val = d.count ?? d.revenue ?? 0;
+      const pct = Math.max(Math.round((val / max) * 100), 3);
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.style.cssText = `height:${pct}%;background:linear-gradient(180deg,var(--gold),rgba(212,168,83,0.3))`;
+      col.innerHTML = `<span class="bar-tip">${esc(d.month)}: ${esc(val)}</span>`;
+      el.appendChild(col);
+      const lbl = document.createElement('span');
+      lbl.textContent = d.month;
+      lb.appendChild(lbl);
+    });
+  }
+
+  function renderApprovalDonut(live, total) {
+    const rate = total > 0 ? Math.round((live / total) * 100) : 0;
+    const circ = 2 * Math.PI * 48;
+    const arc = document.getElementById('donut-arc');
+    const lbl = document.getElementById('donut-label');
+    const bar = document.getElementById('donut-bar');
+    const livEl = document.getElementById('donut-live');
+    const totEl = document.getElementById('donut-total');
+    if (arc) { arc.style.strokeDasharray = `${circ} ${circ}`; arc.style.strokeDashoffset = circ * (1 - rate / 100); }
+    if (lbl) lbl.textContent = rate + '%';
+    if (bar) bar.style.width = rate + '%';
+    if (livEl) livEl.textContent = live;
+    if (totEl) totEl.textContent = 'of ' + total + ' total';
+  }
+
+  function renderSourceHealth(sources) {
+    const el = document.getElementById('source-health');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!sources?.length) { el.innerHTML = '<p style="font-size:11px;color:var(--muted)">No sources configured</p>'; return; }
+    sources.forEach(s => {
+      const cls = s.last_job_status === 'Completed' ? 'h-ok' :
+                  s.last_job_status === 'Failed'    ? 'h-fail' : 'h-idle';
+      const mins = s.minutes_since_last_scrape;
+      const ago = mins == null ? 'Never' : mins < 60 ? mins + 'm ago' : Math.round(mins / 60) + 'h ago';
+      el.insertAdjacentHTML('beforeend', `
+        <div class="health-row">
+          <div class="health-status ${cls}"></div>
+          <span style="flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</span>
+          <span class="badge ${cls==='h-ok'?'badge-green':cls==='h-fail'?'badge-red':'badge-muted'}" style="font-size:9px">${esc(s.last_job_status ?? 'Idle')}</span>
+          <span style="font-size:10px;color:var(--muted);min-width:60px;text-align:right">${esc(ago)}</span>
+        </div>
+      `);
+    });
+  }
+
+  function renderCategories(cats) {
+    const el = document.getElementById('category-bars');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!cats?.length) { el.innerHTML = '<p style="font-size:11px;color:var(--muted)">No category data</p>'; return; }
+    const max = Math.max(...cats.map(c => c.count), 1);
+    cats.forEach(c => {
+      const pct = Math.round((c.count / max) * 100);
+      el.insertAdjacentHTML('beforeend', `
+        <div class="flex items-center gap-3">
+          <span style="font-size:11px;color:var(--muted);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span>
+          <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%"></div></div>
+          <span style="font-size:11px;font-weight:600;color:var(--text);width:20px;text-align:right">${c.count}</span>
+        </div>
+      `);
+    });
+  }
+
+  function renderActivity(items) {
+    const el = document.getElementById('activity-feed');
+    if (!el) return;
+    if (!items?.length) { el.innerHTML = '<p style="font-size:11px;color:var(--muted);padding-left:20px">No recent activity</p>'; return; }
+    const colors = ['var(--gold)','var(--emerald2)','#8A9BB5','#8A9BB5','#8A9BB5'];
+    el.innerHTML = items.map((a, i) => `
+      <div class="activity-item">
+        <div class="activity-dot" style="background:${colors[i] ?? colors[4]};border-color:var(--navy)"></div>
+        <p style="font-size:11px;font-weight:500;color:var(--text);line-height:1.4">
+          ${esc(a.action)}
+          <span style="color:var(--muted);font-weight:400"> · ${esc(a.entity_type ?? '')}</span>
+        </p>
+        <p style="font-size:10px;color:var(--muted);margin-top:3px">${esc(a.actor)} · ${rel(a.time)}</p>
+      </div>
+    `).join('');
+  }
+
+  function tenderPortal() {
+    return {
+      loading: false,
+      sidebarOpen: false,
+      apiStatus: 'loading',
+      apiStatusText: 'Connecting…',
+      apiError: '',
+      lastUpdated: '',
+      showToast: false, toastMsg: '', toastIcon: 'bi-check-circle-fill',
+      userName: 'System Admin', userRole: 'Super Admin',
+      stats: {},
+
+      init() {
+        this.loadUser();
+        requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-tr')));
+        this.fetchDashboard();
+        setInterval(() => this.fetchDashboard(), REFRESH);
+      },
+
+      loadUser() {
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          this.userName = d.name || 'System Admin';
+          this.userRole = d.role_name || 'Super Admin';
+        } catch {}
+      },
+
+      getUserInitials() {
+        return this.userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA';
+      },
+
+      async fetchDashboard() {
+        this.apiStatus = 'loading'; this.apiStatusText = 'Refreshing…';
+        try {
+          const res = await fetch(API, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'API error');
+
+          this.stats = json.stats || {};
+          this.apiStatus = 'connected'; this.apiStatusText = 'Live';
+          this.apiError = '';
+          this.lastUpdated = 'Updated ' + rel(json.timestamp || new Date().toISOString());
+
+          this.$nextTick(() => {
+            renderMonthly(json.monthly || []);
+            renderApprovalDonut(this.stats.live_tenders ?? 0, this.stats.total_scraped ?? 0);
+            renderSourceHealth(json.source_health || []);
+            renderCategories(json.categories || []);
+            renderActivity(json.recent_activity || []);
+          });
+        } catch (e) {
+          this.apiStatus = 'error'; this.apiStatusText = 'Offline'; this.apiError = e.message;
+          console.error('[Dashboard]', e);
+        }
+      },
+
+      toast(msg, icon = 'bi-check-circle-fill') {
+        this.toastMsg = msg; this.toastIcon = icon; this.showToast = true;
+        setTimeout(() => this.showToast = false, 3000);
+      },
+
+      logout() {
+        if (confirm('Sign out of the admin panel?')) {
+          localStorage.clear(); sessionStorage.clear();
+          window.location.href = 'https://ai.nationaltenders.co.za/';
+        }
+      }
+    };
+  }
+</script>
+</body>
+</html> 

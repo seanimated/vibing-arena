@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Unavailable — Evilletec System</title>
+    <link rel="icon" type="image/png" href="Image/Logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="title" content="Evilletec POS — System Unavailable">
+    <meta name="description" content="Evilletec POS is temporarily unavailable. Please contact support for assistance.">
+    <meta name="theme-color" content="#0A0C10">
+    <meta name="author" content="Evilletec">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .video-vignette {
+            background: radial-gradient(circle, rgba(10, 12, 16, 0) 0%, rgba(10, 12, 16, 0.8) 100%);
+        }
+        @keyframes fadeSlideDown {
+            0% { transform: translateY(-8px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes pulseRing {
+            0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.25); }
+            70% { box-shadow: 0 0 0 14px rgba(217, 119, 6, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-fade-slide-down { animation: fadeSlideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1) both; }
+        .animate-pulse-ring { animation: pulseRing 2.2s ease-out infinite; }
+        .spin-slow { animation: spin 6s linear infinite; }
+    </style>
+</head>
+<body class="font-light">
+    <div class="flex min-h-screen bg-white">
+
+        <!-- LEFT PANEL -->
+        <div class="flex flex-col w-full bg-white lg:w-[40%] xl:w-[35%] px-8 md:px-16 py-10">
+
+            <!-- Logo -->
+            <div class="flex items-center gap-2 mb-auto">
+                <div class="w-7 h-7 bg-[#1A1C21] rounded-lg flex items-center justify-center">
+                    <span class="text-white text-[10px] font-extrabold italic">E</span>
+                </div>
+                <span class="text-sm font-semibold tracking-tight text-[#1A1C21]">EVILLETEC <span class="text-slate-400 font-light">System</span></span>
+            </div>
+
+            <!-- Content -->
+            <div class="flex flex-col justify-center flex-1 py-8">
+                <div class="max-w-[320px] mx-auto w-full animate-fade-slide-down">
+
+                    <!-- Status icon -->
+                    <div class="mb-8 flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 animate-pulse-ring">
+                        <svg class="w-8 h-8 spin-slow" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2a10 10 0 1010 10" stroke="#D97706" stroke-width="2.2" stroke-linecap="round"/>
+                            <path d="M12 6v6l4 2" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+
+                    <header class="mb-8">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-3">Service Interruption</p>
+                        <h1 class="text-3xl font-extralight text-[#1A1C21] tracking-tight">System currently unavailable</h1>
+                        <p class="text-[13px] text-slate-500 mt-3 leading-relaxed font-normal">
+                            Evilletec System is temporarily down. Once issues are resolved it should be back up again, contact support for any queries.
+                        </p>
+                    </header>
+
+                    <!-- Contact card -->
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Need help right now?</p>
+
+                        <a href="mailto:support@evilletec.com" class="flex items-center gap-3 group">
+                            <div class="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 group-hover:border-slate-400 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M2.94 6.94a2 2 0 011.28-.44h11.56c.47 0 .91.16 1.28.44L10 10.94 2.94 6.94z"/>
+                                    <path d="M18 8.35l-7.5 4.29a1 1 0 01-1 0L2 8.35V13a2 2 0 002 2h12a2 2 0 002-2V8.35z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-[13px] font-semibold text-[#1A1C21] group-hover:text-black">support@evilletec.com</p>
+                                <p class="text-[11px] text-slate-400">Email support</p>
+                            </div>
+                        </a>
+
+                        <a href="tel:0815369280" class="flex items-center gap-3 group">
+                            <div class="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 group-hover:border-slate-400 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-.464 1.435l-1.09.909a11.05 11.05 0 005.517 5.517l.91-1.09a1.5 1.5 0 011.434-.464l3.223.716A1.5 1.5 0 0118 16.352V17.5a1.5 1.5 0 01-1.5 1.5H15c-8.284 0-15-6.716-15-15v-.5z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-[13px] font-semibold text-[#1A1C21] group-hover:text-black">081 536 9280</p>
+                                <p class="text-[11px] text-slate-400">Phone support</p>
+                            </div>
+                        </a>
+                    </div>
+
+                    <button onclick="location.reload()" class="w-full mt-6 py-3.5 bg-[#1A1C21] hover:bg-black text-white text-[13px] font-bold rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                        Try Again
+                    </button>
+
+                    <p class="mt-8 text-center text-[11px] text-slate-400 font-normal leading-relaxed">If the problem persists, please reach out to our support team.</p>
+                </div>
+            </div>
+
+            <div class="h-7"></div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="hidden lg:block lg:flex-1 relative overflow-hidden bg-[#0A0C10]">
+            <video autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-40">
+                <source src="static/videos/Video.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 video-vignette"></div>
+            <div class="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
+                <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[40px] max-w-sm">
+                    <div class="mb-8">
+                        <h2 class="text-white text-3xl font-extralight tracking-tighter mb-4">We'll be right back.</h2>
+                        <div class="h-0.5 w-12 bg-red-600 rounded-full mx-auto"></div>
+                    </div>
+                    <p class="text-slate-300 text-[14px] leading-relaxed font-light">Our team is on it. Thank you for your patience while we restore full service.</p>
+                </div>
+            </div>
+            <div class="absolute bottom-10 left-10 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Secure Environment // v1.0.0</div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,1389 @@
+-- ============================================================================
+-- TENDER SCRAPER PORTAL — DATABASE SCHEMA
+-- South Africa Tender Intelligence Platform
+-- MySQL / MariaDB Compatible
+-- Version: 1.0
+-- ============================================================================
+-- Sections:
+--   1.  Roles & Admins
+--   2.  Access Requests
+--   3.  Scraper Sources
+--   4.  Scraper Jobs
+--   5.  Raw Scraped Tenders (inbox from bot)
+--   6.  Tender Files (PDFs)
+--   7.  Tender Categories & Tags
+--   8.  Published Tenders (approved, visible to applicants)
+--   9.  Tender Edits / Version History
+--  10.  Applicant Profiles
+--  11.  Tender Applications
+--  12.  Audit Logs
+--  13.  Admin Notifications
+--  14.  Help Articles
+--  15.  System Settings
+--  16.  Views
+-- ============================================================================
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ============================================================================
+-- 1. ROLES & ADMINS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS roles (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(50)  UNIQUE NOT NULL,   -- super_admin | admin | reviewer | viewer
+    permissions JSON         DEFAULT NULL,
+    description TEXT,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT IGNORE INTO roles (name, description) VALUES
+('super_admin', 'Full system access — can manage admins and settings'),
+('admin',       'Can review, edit, approve, delete and push tenders'),
+('reviewer',    'Can view raw tenders and leave notes; cannot publish'),
+('viewer',      'Read-only access to the admin panel');
+
+CREATE TABLE IF NOT EXISTS admins (
+    id                    INT AUTO_INCREMENT PRIMARY KEY,
+    role_id               INT          NOT NULL,
+    first_name            VARCHAR(100) NOT NULL,
+    last_name             VARCHAR(100) NOT NULL,
+    email                 VARCHAR(255) UNIQUE NOT NULL,
+    password_hash         VARCHAR(255) NOT NULL,
+    phone                 VARCHAR(50)  DEFAULT NULL,
+    avatar_url            VARCHAR(500) DEFAULT NULL,
+    is_active             BOOLEAN      DEFAULT TRUE,
+    is_verified           BOOLEAN      DEFAULT FALSE,   -- email verified
+    two_fa_secret         VARCHAR(100) DEFAULT NULL,    -- TOTP secret (optional)
+    two_fa_enabled        BOOLEAN      DEFAULT FALSE,
+    last_login_at         TIMESTAMP    NULL,
+    last_login_ip         VARCHAR(45)  DEFAULT NULL,
+    password_changed_at   TIMESTAMP    NULL,
+    reset_token           VARCHAR(255) DEFAULT NULL,
+    reset_token_expires   TIMESTAMP    NULL,
+    created_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by            INT          DEFAULT NULL,    -- which super_admin created this account
+    FOREIGN KEY (role_id)    REFERENCES roles(id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- Seed super admin (password must be changed immediately on first login)
+-- Default password hash is for 'ChangeMe@2025!' — MUST be rotated on deploy
+INSERT IGNORE INTO admins (id, role_id, first_name, last_name, email, password_hash, is_active, is_verified)
+VALUES (1,
+    (SELECT id FROM roles WHERE name = 'super_admin'),
+    'System', 'Administrator',
+    'admin@tenderportal.co.za',
+    '$2y$12$placeholder_change_on_deploy_hash',   -- replace with bcrypt hash
+    TRUE, TRUE
+);
+
+-- Indexes
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='admins' AND index_name='idx_admins_email');
+SET @s=IF(@i=0,'CREATE INDEX idx_admins_email ON admins(email)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='admins' AND index_name='idx_admins_role');
+SET @s=IF(@i=0,'CREATE INDEX idx_admins_role ON admins(role_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 2. ACCESS REQUESTS (public "Request Access" form)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS access_requests (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    first_name      VARCHAR(100) NOT NULL,
+    last_name       VARCHAR(100) NOT NULL,
+    email           VARCHAR(255) NOT NULL,
+    phone           VARCHAR(50)  DEFAULT NULL,
+    organisation    VARCHAR(255) DEFAULT NULL,
+    job_title       VARCHAR(100) DEFAULT NULL,
+    reason          TEXT,                               -- why they need access
+    requested_role  VARCHAR(50)  DEFAULT 'reviewer',   -- role they are requesting
+    status          VARCHAR(20)  DEFAULT 'Pending',     -- Pending | Approved | Rejected
+    reviewed_by     INT          DEFAULT NULL,
+    reviewed_at     TIMESTAMP    NULL,
+    rejection_note  TEXT,
+    ip_address      VARCHAR(45)  DEFAULT NULL,
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='access_requests' AND index_name='idx_access_req_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_access_req_status ON access_requests(status, created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='access_requests' AND index_name='idx_access_req_email');
+SET @s=IF(@i=0,'CREATE INDEX idx_access_req_email ON access_requests(email)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 3. SCRAPER SOURCES (websites the bot scrapes)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS scraper_sources (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    name                VARCHAR(255) NOT NULL,           -- e.g. 'eTenders South Africa'
+    base_url            VARCHAR(500) NOT NULL,           -- e.g. 'https://www.etenders.gov.za'
+    tender_list_url     VARCHAR(500) DEFAULT NULL,       -- URL of the listing page
+    scraper_type        VARCHAR(50)  DEFAULT 'html',     -- html | api | pdf | rss
+    scraper_class       VARCHAR(100) DEFAULT NULL,       -- PHP class name handling this source
+    auth_required       BOOLEAN      DEFAULT FALSE,
+    auth_credentials    JSON         DEFAULT NULL,       -- encrypted credentials if needed
+    request_interval_s  INT          DEFAULT 3600,       -- seconds between scrape runs
+    is_active           BOOLEAN      DEFAULT TRUE,
+    is_verified         BOOLEAN      DEFAULT FALSE,      -- source has been tested and confirmed working
+    last_scraped_at     TIMESTAMP    NULL,
+    last_error          TEXT         DEFAULT NULL,
+    scrape_count        INT          DEFAULT 0,          -- total successful scrapes
+    logo_url            VARCHAR(500) DEFAULT NULL,
+    notes               TEXT,
+    created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by          INT,
+    FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- Seed common South African tender portals
+INSERT IGNORE INTO scraper_sources (name, base_url, tender_list_url, scraper_type, is_active, is_verified) VALUES
+('eTenders National Treasury',   'https://www.etenders.gov.za',          'https://www.etenders.gov.za/content/advertised-tenders', 'html', TRUE,  FALSE),
+('CIDB Register of Contractors', 'https://cidbwebapp.cidb.org.za',       NULL,                                                       'html', FALSE, FALSE),
+('Gauteng Provincial Treasury',  'https://www.treasury.gpg.gov.za',      NULL,                                                       'html', TRUE,  FALSE),
+('City of Johannesburg',         'https://www.joburg.org.za',            'https://www.joburg.org.za/tenders',                        'html', TRUE,  FALSE),
+('City of Cape Town',            'https://www.capetown.gov.za',          'https://www.capetown.gov.za/tenders',                      'html', TRUE,  FALSE),
+('DBSA Tenders',                 'https://www.dbsa.org',                 'https://www.dbsa.org/tenders',                             'html', FALSE, FALSE),
+('Transnet Tenders',             'https://www.transnet.net',             NULL,                                                       'html', FALSE, FALSE),
+('Eskom Procurement',            'https://www.eskom.co.za',              NULL,                                                       'html', FALSE, FALSE),
+('SANParks Tenders',             'https://www.sanparks.org',             NULL,                                                       'html', FALSE, FALSE),
+('PRASA Tenders',                'https://www.prasa.com',                NULL,                                                       'html', FALSE, FALSE);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='scraper_sources' AND index_name='idx_sources_active');
+SET @s=IF(@i=0,'CREATE INDEX idx_sources_active ON scraper_sources(is_active, last_scraped_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 4. SCRAPER JOBS (log of each bot run)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS scraper_jobs (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    source_id           INT          NOT NULL,
+    job_uid             VARCHAR(64)  UNIQUE NOT NULL,   -- UUID assigned by bot at job start
+    status              VARCHAR(20)  DEFAULT 'Running', -- Running | Completed | Failed | Cancelled
+    triggered_by        VARCHAR(20)  DEFAULT 'cron',   -- cron | manual | webhook
+    triggered_by_admin  INT          DEFAULT NULL,      -- if manual
+    started_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    finished_at         TIMESTAMP    NULL,
+    duration_seconds    INT          DEFAULT NULL,
+    pages_scraped       INT          DEFAULT 0,
+    tenders_found       INT          DEFAULT 0,
+    tenders_new         INT          DEFAULT 0,         -- newly inserted (not duplicates)
+    tenders_updated     INT          DEFAULT 0,
+    pdfs_downloaded     INT          DEFAULT 0,
+    error_count         INT          DEFAULT 0,
+    error_log           TEXT         DEFAULT NULL,      -- JSON array of error messages
+    raw_response_sample TEXT         DEFAULT NULL,      -- first 2000 chars of raw HTML/JSON (for debugging)
+    user_agent          VARCHAR(255) DEFAULT NULL,
+    ip_used             VARCHAR(45)  DEFAULT NULL,
+    FOREIGN KEY (source_id)           REFERENCES scraper_sources(id) ON DELETE CASCADE,
+    FOREIGN KEY (triggered_by_admin)  REFERENCES admins(id) ON DELETE SET NULL
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='scraper_jobs' AND index_name='idx_jobs_source');
+SET @s=IF(@i=0,'CREATE INDEX idx_jobs_source ON scraper_jobs(source_id, started_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='scraper_jobs' AND index_name='idx_jobs_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_jobs_status ON scraper_jobs(status)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 5. RAW SCRAPED TENDERS (bot inbox — unreviewed)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS raw_tenders (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    scraper_job_id          INT          DEFAULT NULL,
+    source_id               INT          NOT NULL,
+
+    -- Identifiers
+    source_tender_id        VARCHAR(255) DEFAULT NULL,   -- ID as it appears on the source site
+    source_url              VARCHAR(1000) NOT NULL,      -- direct URL to this tender on source site
+    content_hash            VARCHAR(64)  DEFAULT NULL,   -- SHA-256 of title+desc to detect duplicates
+
+    -- Core tender data (as scraped — may be raw/dirty)
+    title                   VARCHAR(1000) NOT NULL,
+    reference_number        VARCHAR(255) DEFAULT NULL,
+    description             TEXT         DEFAULT NULL,
+    issuing_organisation    VARCHAR(500) DEFAULT NULL,
+    province                VARCHAR(100) DEFAULT NULL,
+    tender_type             VARCHAR(100) DEFAULT NULL,   -- Goods | Services | Works | Consultancy | Other
+    estimated_value         DECIMAL(18,2) DEFAULT NULL,
+    currency                VARCHAR(3)   DEFAULT 'ZAR',
+    closing_date            DATE         DEFAULT NULL,
+    closing_time            TIME         DEFAULT NULL,
+    published_date          DATE         DEFAULT NULL,
+    compulsory_briefing     BOOLEAN      DEFAULT FALSE,
+    briefing_date           DATE         DEFAULT NULL,
+    briefing_venue          TEXT         DEFAULT NULL,
+    contact_name            VARCHAR(255) DEFAULT NULL,
+    contact_email           VARCHAR(255) DEFAULT NULL,
+    contact_phone           VARCHAR(50)  DEFAULT NULL,
+    enquiries_email         VARCHAR(255) DEFAULT NULL,
+    submission_address      TEXT         DEFAULT NULL,
+
+    -- CIDB / B-BBEE requirements
+    cidb_grade              VARCHAR(20)  DEFAULT NULL,   -- e.g. '5CE', '7GB'
+    bbbee_requirement       VARCHAR(50)  DEFAULT NULL,   -- e.g. 'Level 1', 'Level 4+', NULL = not specified
+    local_content_pct       DECIMAL(5,2) DEFAULT NULL,   -- % local content required
+
+    -- Raw HTML captured from source (kept for re-parsing)
+    raw_html_snippet        MEDIUMTEXT   DEFAULT NULL,
+
+    -- Admin workflow
+    admin_status            VARCHAR(30)  DEFAULT 'Pending',
+    -- Pending | Under Review | Approved | Rejected | Duplicate | Pushed
+    is_duplicate            BOOLEAN      DEFAULT FALSE,
+    duplicate_of_id         INT          DEFAULT NULL,   -- FK to self
+    assigned_to             INT          DEFAULT NULL,   -- admin reviewing this
+    assigned_at             TIMESTAMP    NULL,
+    admin_notes             TEXT         DEFAULT NULL,   -- reviewer notes
+
+    -- Timestamps
+    scraped_at              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at             TIMESTAMP    NULL,
+    reviewed_by             INT          DEFAULT NULL,
+
+    UNIQUE KEY unique_source_tender (source_id, source_tender_id),
+
+    FOREIGN KEY (scraper_job_id) REFERENCES scraper_jobs(id) ON DELETE SET NULL,
+    FOREIGN KEY (source_id)      REFERENCES scraper_sources(id),
+    FOREIGN KEY (assigned_to)    REFERENCES admins(id) ON DELETE SET NULL,
+    FOREIGN KEY (reviewed_by)    REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- Deferred self-FK for duplicate_of_id
+SET @c=(SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='fk_raw_tender_duplicate');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD CONSTRAINT fk_raw_tender_duplicate FOREIGN KEY (duplicate_of_id) REFERENCES raw_tenders(id) ON DELETE SET NULL','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='raw_tenders' AND index_name='idx_raw_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_raw_status ON raw_tenders(admin_status, scraped_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='raw_tenders' AND index_name='idx_raw_source');
+SET @s=IF(@i=0,'CREATE INDEX idx_raw_source ON raw_tenders(source_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='raw_tenders' AND index_name='idx_raw_hash');
+SET @s=IF(@i=0,'CREATE INDEX idx_raw_hash ON raw_tenders(content_hash)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='raw_tenders' AND index_name='idx_raw_closing');
+SET @s=IF(@i=0,'CREATE INDEX idx_raw_closing ON raw_tenders(closing_date)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='raw_tenders' AND index_name='idx_raw_assigned');
+SET @s=IF(@i=0,'CREATE INDEX idx_raw_assigned ON raw_tenders(assigned_to)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 6. TENDER FILES (PDFs and other documents)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS tender_files (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    raw_tender_id       INT          DEFAULT NULL,  -- linked to raw (pre-approval)
+    published_tender_id INT          DEFAULT NULL,  -- linked to published (post-approval)
+    file_type           VARCHAR(30)  DEFAULT 'tender_document',
+    -- tender_document | addendum | clarification | award_notice | other
+
+    -- Scraper-downloaded file
+    original_url        VARCHAR(1000) DEFAULT NULL,  -- URL it was downloaded from
+    file_name           VARCHAR(500) NOT NULL,
+    stored_path         VARCHAR(1000) NOT NULL,      -- relative path on disk e.g. storage/pdfs/2025/06/uuid.pdf
+    file_size_bytes     BIGINT       DEFAULT NULL,
+    mime_type           VARCHAR(100) DEFAULT 'application/pdf',
+    page_count          INT          DEFAULT NULL,   -- extracted from PDF metadata
+    is_searchable       BOOLEAN      DEFAULT NULL,   -- TRUE if text-extractable, FALSE if scanned image
+    extracted_text      LONGTEXT     DEFAULT NULL,   -- text extracted from PDF for full-text search
+
+    -- Upload meta
+    download_status     VARCHAR(20)  DEFAULT 'Downloaded',  -- Downloaded | Failed | Pending
+    downloaded_at       TIMESTAMP    NULL,
+    download_error      TEXT         DEFAULT NULL,
+
+    -- Admin uploads (manual additions)
+    uploaded_by_admin   INT          DEFAULT NULL,
+    uploaded_at         TIMESTAMP    NULL,
+
+    is_active           BOOLEAN      DEFAULT TRUE,
+    created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (raw_tender_id)       REFERENCES raw_tenders(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by_admin)   REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- Deferred FK: published_tender_id added after published_tenders table is created (see below)
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_files' AND index_name='idx_files_raw');
+SET @s=IF(@i=0,'CREATE INDEX idx_files_raw ON tender_files(raw_tender_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_files' AND index_name='idx_files_published');
+SET @s=IF(@i=0,'CREATE INDEX idx_files_published ON tender_files(published_tender_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 7. TENDER CATEGORIES & TAGS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS tender_categories (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(150) UNIQUE NOT NULL,
+    slug        VARCHAR(150) UNIQUE NOT NULL,
+    description TEXT,
+    icon        VARCHAR(50)  DEFAULT 'folder',
+    color       VARCHAR(7)   DEFAULT '#064e3b',
+    parent_id   INT          DEFAULT NULL,
+    sort_order  INT          DEFAULT 0,
+    is_active   BOOLEAN      DEFAULT TRUE,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES tender_categories(id) ON DELETE SET NULL
+);
+
+INSERT IGNORE INTO tender_categories (name, slug, icon, color, sort_order) VALUES
+('Construction & Infrastructure',  'construction',      'building',          '#d97706', 1),
+('IT & Technology',                'it-technology',     'cpu',               '#3b82f6', 2),
+('Professional Services',          'professional',      'briefcase',         '#8b5cf6', 3),
+('Healthcare & Medical',           'healthcare',        'heart-pulse',       '#ef4444', 4),
+('Education & Training',           'education',         'book',              '#06b6d4', 5),
+('Goods & Supplies',               'goods-supplies',    'box-seam',          '#f59e0b', 6),
+('Logistics & Transport',          'logistics',         'truck',             '#64748b', 7),
+('Security Services',              'security',          'shield',            '#374151', 8),
+('Cleaning & Facilities',          'cleaning',          'stars',             '#22d3ee', 9),
+('Marketing & Communications',     'marketing',         'megaphone',         '#ec4899', 10),
+('Engineering & Technical',        'engineering',       'gear',              '#84cc16', 11),
+('Financial & Accounting',         'financial',         'currency-dollar',   '#0ea5e9', 12),
+('Legal Services',                 'legal',             'scales',            '#a855f7', 13),
+('Agriculture & Environment',      'agriculture',       'tree',              '#15803d', 14),
+('Energy & Utilities',             'energy',            'lightning',         '#eab308', 15),
+('Other',                          'other',             'three-dots',        '#94a3b8', 16);
+
+CREATE TABLE IF NOT EXISTS tender_tags (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) UNIQUE NOT NULL,
+    slug        VARCHAR(100) UNIQUE NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT IGNORE INTO tender_tags (name, slug) VALUES
+('Urgent', 'urgent'), ('High Value', 'high-value'), ('SMME Friendly', 'smme-friendly'),
+('Women Owned', 'women-owned'), ('Youth Owned', 'youth-owned'), ('PDI Required', 'pdi-required'),
+('Recurring', 'recurring'), ('Framework', 'framework'), ('Joint Venture', 'joint-venture'),
+('Local Only', 'local-only'), ('National', 'national'), ('Municipal', 'municipal'),
+('Provincial', 'provincial'), ('State Owned Entity', 'soe'), ('International', 'international');
+
+-- ============================================================================
+-- 8. PUBLISHED TENDERS (admin-approved, visible to applicants in the app)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS published_tenders (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    raw_tender_id           INT          NOT NULL,   -- source raw record
+
+    -- Cleaned / edited core data (may differ from raw after admin edits)
+    title                   VARCHAR(1000) NOT NULL,
+    reference_number        VARCHAR(255) DEFAULT NULL,
+    slug                    VARCHAR(1000) GENERATED ALWAYS AS (
+                                LOWER(REPLACE(REPLACE(SUBSTRING(title, 1, 200), ' ', '-'), '/', '-'))
+                            ) STORED,
+    description             LONGTEXT     NOT NULL,
+    category_id             INT          DEFAULT NULL,
+    issuing_organisation    VARCHAR(500) DEFAULT NULL,
+    province                VARCHAR(100) DEFAULT NULL,
+    tender_type             VARCHAR(100) DEFAULT NULL,
+    estimated_value         DECIMAL(18,2) DEFAULT NULL,
+    currency                VARCHAR(3)   DEFAULT 'ZAR',
+    closing_date            DATE         NOT NULL,
+    closing_time            TIME         DEFAULT '17:00:00',
+    published_date          DATE         DEFAULT NULL,   -- date on original source
+    compulsory_briefing     BOOLEAN      DEFAULT FALSE,
+    briefing_date           DATE         DEFAULT NULL,
+    briefing_venue          TEXT         DEFAULT NULL,
+    contact_name            VARCHAR(255) DEFAULT NULL,
+    contact_email           VARCHAR(255) DEFAULT NULL,
+    contact_phone           VARCHAR(50)  DEFAULT NULL,
+    enquiries_email         VARCHAR(255) DEFAULT NULL,
+    submission_address      TEXT         DEFAULT NULL,
+    cidb_grade              VARCHAR(20)  DEFAULT NULL,
+    bbbee_requirement       VARCHAR(50)  DEFAULT NULL,
+    local_content_pct       DECIMAL(5,2) DEFAULT NULL,
+    source_url              VARCHAR(1000) DEFAULT NULL,
+
+    -- Portal status
+    status                  VARCHAR(30)  DEFAULT 'Active',
+    -- Active | Closed | Cancelled | Awarded | Archived
+    is_featured             BOOLEAN      DEFAULT FALSE,
+    is_urgent               BOOLEAN      DEFAULT FALSE,
+    view_count              INT          DEFAULT 0,
+    application_count       INT          DEFAULT 0,   -- denormalised counter
+
+    -- Approval meta
+    approved_by             INT          NOT NULL,
+    approved_at             TIMESTAMP    NOT NULL,
+    published_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    last_edited_by          INT          DEFAULT NULL,
+    last_edited_at          TIMESTAMP    NULL,
+
+    -- Expiry
+    expires_at              TIMESTAMP    GENERATED ALWAYS AS (
+                                TIMESTAMP(closing_date, closing_time)
+                            ) STORED,
+
+    created_at              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (raw_tender_id)    REFERENCES raw_tenders(id),
+    FOREIGN KEY (category_id)      REFERENCES tender_categories(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by)      REFERENCES admins(id),
+    FOREIGN KEY (last_edited_by)   REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- Many-to-many: published_tenders ↔ tender_tags
+CREATE TABLE IF NOT EXISTS published_tender_tags (
+    published_tender_id INT NOT NULL,
+    tag_id              INT NOT NULL,
+    PRIMARY KEY (published_tender_id, tag_id),
+    FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id)              REFERENCES tender_tags(id) ON DELETE CASCADE
+);
+
+-- Add deferred FK: tender_files.published_tender_id → published_tenders
+SET @c=(SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='fk_files_published');
+SET @s=IF(@c=0,'ALTER TABLE tender_files ADD CONSTRAINT fk_files_published FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE CASCADE','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_status ON published_tenders(status, closing_date)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_category');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_category ON published_tenders(category_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_province');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_province ON published_tenders(province)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_closing');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_closing ON published_tenders(closing_date)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_raw');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_raw ON published_tenders(raw_tender_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- Full-text search index on published tenders
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='ft_pub_tender_search');
+SET @s=IF(@i=0,'ALTER TABLE published_tenders ADD FULLTEXT INDEX ft_pub_tender_search (title, description, reference_number, issuing_organisation)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 9. TENDER EDIT HISTORY (version log of all admin changes to raw or published)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS tender_edit_history (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    raw_tender_id       INT          DEFAULT NULL,
+    published_tender_id INT          DEFAULT NULL,
+    edited_by           INT          NOT NULL,
+    edit_type           VARCHAR(50)  NOT NULL,
+    -- status_change | field_edit | approved | rejected | pushed | deleted | file_added | file_removed
+    field_changed       VARCHAR(100) DEFAULT NULL,   -- which field changed (for field_edit)
+    old_value           MEDIUMTEXT   DEFAULT NULL,
+    new_value           MEDIUMTEXT   DEFAULT NULL,
+    change_summary      TEXT         DEFAULT NULL,   -- human readable summary
+    ip_address          VARCHAR(45)  DEFAULT NULL,
+    created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (raw_tender_id)       REFERENCES raw_tenders(id) ON DELETE CASCADE,
+    FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE CASCADE,
+    FOREIGN KEY (edited_by)           REFERENCES admins(id)
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_edit_history' AND index_name='idx_edit_raw');
+SET @s=IF(@i=0,'CREATE INDEX idx_edit_raw ON tender_edit_history(raw_tender_id, created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_edit_history' AND index_name='idx_edit_published');
+SET @s=IF(@i=0,'CREATE INDEX idx_edit_published ON tender_edit_history(published_tender_id, created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_edit_history' AND index_name='idx_edit_admin');
+SET @s=IF(@i=0,'CREATE INDEX idx_edit_admin ON tender_edit_history(edited_by)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 10. APPLICANT PROFILES (end-users of the tender app)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS applicants (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    first_name              VARCHAR(100) NOT NULL,
+    last_name               VARCHAR(100) NOT NULL,
+    email                   VARCHAR(255) UNIQUE NOT NULL,
+    password_hash           VARCHAR(255) NOT NULL,
+    phone                   VARCHAR(50)  DEFAULT NULL,
+    company_name            VARCHAR(255) DEFAULT NULL,
+    registration_number     VARCHAR(100) DEFAULT NULL,   -- CIPC number
+    vat_number              VARCHAR(50)  DEFAULT NULL,
+    bbbee_level             TINYINT      DEFAULT NULL,
+    bbbee_certificate_url   VARCHAR(500) DEFAULT NULL,
+    bbbee_expiry_date       DATE         DEFAULT NULL,
+    cidb_grade              VARCHAR(20)  DEFAULT NULL,
+    province                VARCHAR(100) DEFAULT NULL,
+    website                 VARCHAR(255) DEFAULT NULL,
+    bio                     TEXT         DEFAULT NULL,
+
+    -- Account
+    is_active               BOOLEAN      DEFAULT TRUE,
+    is_verified             BOOLEAN      DEFAULT FALSE,
+    email_verify_token      VARCHAR(255) DEFAULT NULL,
+    reset_token             VARCHAR(255) DEFAULT NULL,
+    reset_token_expires     TIMESTAMP    NULL,
+    last_login_at           TIMESTAMP    NULL,
+    notification_email      BOOLEAN      DEFAULT TRUE,   -- receive tender alerts by email
+    notification_sms        BOOLEAN      DEFAULT FALSE,
+
+    -- Preferences (categories they are interested in)
+    preferred_categories    JSON         DEFAULT NULL,   -- [1,4,6] category IDs
+    preferred_provinces     JSON         DEFAULT NULL,   -- ['Gauteng','Western Cape']
+    preferred_keywords      JSON         DEFAULT NULL,   -- keyword alert list
+
+    created_at              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='applicants' AND index_name='idx_applicants_email');
+SET @s=IF(@i=0,'CREATE INDEX idx_applicants_email ON applicants(email)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='applicants' AND index_name='idx_applicants_province');
+SET @s=IF(@i=0,'CREATE INDEX idx_applicants_province ON applicants(province)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 11. TENDER APPLICATIONS (applicants applying via the portal)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS tender_applications (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    published_tender_id     INT          NOT NULL,
+    applicant_id            INT          NOT NULL,
+    status                  VARCHAR(30)  DEFAULT 'Submitted',
+    -- Submitted | Under Review | Shortlisted | Unsuccessful | Withdrawn | Awarded
+    cover_letter            TEXT         DEFAULT NULL,
+    additional_notes        TEXT         DEFAULT NULL,
+    company_profile_url     VARCHAR(500) DEFAULT NULL,
+    submitted_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    reviewed_by_admin       INT          DEFAULT NULL,
+    reviewed_at             TIMESTAMP    NULL,
+    admin_notes             TEXT         DEFAULT NULL,
+    is_withdrawn            BOOLEAN      DEFAULT FALSE,
+    withdrawn_at            TIMESTAMP    NULL,
+    UNIQUE KEY unique_application (published_tender_id, applicant_id),
+    FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE CASCADE,
+    FOREIGN KEY (applicant_id)        REFERENCES applicants(id)         ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by_admin)   REFERENCES admins(id)             ON DELETE SET NULL
+);
+
+-- Application documents (CV, company docs, etc.)
+CREATE TABLE IF NOT EXISTS application_documents (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    application_id  INT          NOT NULL,
+    document_type   VARCHAR(50)  NOT NULL,  -- company_profile | tax_clearance | bbbee | cv | other
+    file_name       VARCHAR(255) NOT NULL,
+    stored_path     VARCHAR(1000) NOT NULL,
+    file_size_bytes BIGINT       DEFAULT NULL,
+    mime_type       VARCHAR(100) DEFAULT NULL,
+    uploaded_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES tender_applications(id) ON DELETE CASCADE
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_applications' AND index_name='idx_apps_tender');
+SET @s=IF(@i=0,'CREATE INDEX idx_apps_tender ON tender_applications(published_tender_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_applications' AND index_name='idx_apps_applicant');
+SET @s=IF(@i=0,'CREATE INDEX idx_apps_applicant ON tender_applications(applicant_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='tender_applications' AND index_name='idx_apps_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_apps_status ON tender_applications(status)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- Bookmarks (applicants saving tenders to watch)
+CREATE TABLE IF NOT EXISTS tender_bookmarks (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    applicant_id        INT NOT NULL,
+    published_tender_id INT NOT NULL,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_bookmark (applicant_id, published_tender_id),
+    FOREIGN KEY (applicant_id)        REFERENCES applicants(id)        ON DELETE CASCADE,
+    FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- 12. AUDIT LOGS (comprehensive — every sensitive action is logged)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    -- Actor
+    actor_type      VARCHAR(20)  NOT NULL,   -- admin | system | scraper | applicant
+    actor_id        INT          DEFAULT NULL,
+    actor_email     VARCHAR(255) DEFAULT NULL,  -- snapshot at time of action
+    actor_role      VARCHAR(50)  DEFAULT NULL,  -- snapshot
+
+    -- Action
+    action          VARCHAR(100) NOT NULL,
+    -- Examples:
+    --   admin.login | admin.logout | admin.login_failed
+    --   admin.created | admin.updated | admin.deactivated | admin.password_reset
+    --   access_request.submitted | access_request.approved | access_request.rejected
+    --   scraper_job.started | scraper_job.completed | scraper_job.failed
+    --   raw_tender.received | raw_tender.assigned | raw_tender.approved
+    --   raw_tender.rejected | raw_tender.edited | raw_tender.pushed | raw_tender.deleted
+    --   published_tender.created | published_tender.edited | published_tender.archived
+    --   application.submitted | application.withdrawn | application.status_changed
+    --   settings.updated | source.created | source.toggled
+
+    -- Target
+    entity_type     VARCHAR(50)  DEFAULT NULL,   -- admins | raw_tenders | published_tenders | etc.
+    entity_id       BIGINT       DEFAULT NULL,
+    entity_label    VARCHAR(500) DEFAULT NULL,   -- human-readable snapshot e.g. tender title
+
+    -- Change data
+    old_data        JSON         DEFAULT NULL,
+    new_data        JSON         DEFAULT NULL,
+    change_summary  TEXT         DEFAULT NULL,
+
+    -- Request context
+    ip_address      VARCHAR(45)  DEFAULT NULL,
+    user_agent      TEXT         DEFAULT NULL,
+    session_id      VARCHAR(128) DEFAULT NULL,
+    request_url     VARCHAR(1000) DEFAULT NULL,
+    request_method  VARCHAR(10)  DEFAULT NULL,
+
+    result          VARCHAR(20)  DEFAULT 'success',  -- success | failure | warning
+    failure_reason  TEXT         DEFAULT NULL,
+
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='audit_logs' AND index_name='idx_audit_actor');
+SET @s=IF(@i=0,'CREATE INDEX idx_audit_actor ON audit_logs(actor_type, actor_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='audit_logs' AND index_name='idx_audit_action');
+SET @s=IF(@i=0,'CREATE INDEX idx_audit_action ON audit_logs(action)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='audit_logs' AND index_name='idx_audit_entity');
+SET @s=IF(@i=0,'CREATE INDEX idx_audit_entity ON audit_logs(entity_type, entity_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='audit_logs' AND index_name='idx_audit_created');
+SET @s=IF(@i=0,'CREATE INDEX idx_audit_created ON audit_logs(created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='audit_logs' AND index_name='idx_audit_result');
+SET @s=IF(@i=0,'CREATE INDEX idx_audit_result ON audit_logs(result, created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 13. ADMIN NOTIFICATIONS (in-panel alert bell)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS admin_notifications (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    admin_id        INT          NOT NULL,   -- recipient; NULL = broadcast to all
+    title           VARCHAR(255) NOT NULL,
+    message         TEXT         NOT NULL,
+    type            VARCHAR(50)  DEFAULT 'info',   -- info | success | warning | error | tender | scraper
+    entity_type     VARCHAR(50)  DEFAULT NULL,
+    entity_id       INT          DEFAULT NULL,
+    action_url      VARCHAR(500) DEFAULT NULL,     -- click destination in panel
+    is_read         BOOLEAN      DEFAULT FALSE,
+    read_at         TIMESTAMP    NULL,
+    created_by      INT          DEFAULT NULL,     -- NULL = system generated
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id)   REFERENCES admins(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='admin_notifications' AND index_name='idx_notif_admin');
+SET @s=IF(@i=0,'CREATE INDEX idx_notif_admin ON admin_notifications(admin_id, is_read, created_at)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ============================================================================
+-- 14. HELP ARTICLES (admin help page content managed in-panel)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS help_categories (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(150) NOT NULL,
+    slug        VARCHAR(150) UNIQUE NOT NULL,
+    sort_order  INT DEFAULT 0,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT IGNORE INTO help_categories (name, slug, sort_order) VALUES
+('Getting Started',     'getting-started',    1),
+('Managing Tenders',    'managing-tenders',   2),
+('Scraper & Sources',   'scraper-sources',    3),
+('Admin Accounts',      'admin-accounts',     4),
+('Applications',        'applications',       5),
+('Audit & Compliance',  'audit-compliance',   6),
+('Troubleshooting',     'troubleshooting',    7);
+
+CREATE TABLE IF NOT EXISTS help_articles (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    category_id     INT          DEFAULT NULL,
+    title           VARCHAR(500) NOT NULL,
+    slug            VARCHAR(500) UNIQUE NOT NULL,
+    content         LONGTEXT     NOT NULL,      -- Markdown or HTML
+    excerpt         TEXT         DEFAULT NULL,
+    is_published    BOOLEAN      DEFAULT TRUE,
+    sort_order      INT          DEFAULT 0,
+    view_count      INT          DEFAULT 0,
+    helpful_yes     INT          DEFAULT 0,
+    helpful_no      INT          DEFAULT 0,
+    created_by      INT,
+    updated_by      INT,
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (category_id) REFERENCES help_categories(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by)  REFERENCES admins(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by)  REFERENCES admins(id) ON DELETE SET NULL
+);
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='help_articles' AND index_name='ft_help_search');
+SET @s=IF(@i=0,'ALTER TABLE help_articles ADD FULLTEXT INDEX ft_help_search (title, content)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- Seed essential help articles
+INSERT IGNORE INTO help_articles (category_id, title, slug, content, is_published) VALUES
+(
+  (SELECT id FROM help_categories WHERE slug='getting-started'),
+  'Welcome to the Tender Portal Admin Panel',
+  'welcome-to-admin-panel',
+  '## Welcome\n\nThis admin panel allows you to review, approve and publish tender notices scraped from South African government and SOE websites.\n\n### Quick Navigation\n- **Dashboard** — overview of pending tenders and scraper health\n- **Operations** — review, edit and push tenders\n- **Scraper** — manage sources and trigger manual runs\n- **Applications** — review applicant submissions\n- **Admins** — manage admin accounts\n- **Audit Logs** — compliance trail\n- **Help** — this page',
+  TRUE
+),
+(
+  (SELECT id FROM help_categories WHERE slug='managing-tenders'),
+  'How to Review and Approve a Tender',
+  'review-approve-tender',
+  '## Reviewing a Tender\n\n1. Go to **Operations → Pending Tenders**\n2. Click a tender row to open the detail panel\n3. Review the scraped data and attached PDF\n4. Edit any incorrect fields using the **Edit** button\n5. Add reviewer notes if needed\n6. Click **Approve & Push** to publish the tender to the applicant app\n7. Or click **Reject** with a reason to discard it\n\nAll actions are recorded in the Audit Log.',
+  TRUE
+),
+(
+  (SELECT id FROM help_categories WHERE slug='scraper-sources'),
+  'Understanding Scraper Jobs',
+  'understanding-scraper-jobs',
+  '## Scraper Jobs\n\nThe bot runs on a schedule (typically hourly) and visits each active source to find new tenders.\n\n- **Status: Running** — currently in progress\n- **Status: Completed** — finished successfully\n- **Status: Failed** — check the error log\n\nYou can trigger a manual run from **Operations → Scraper Sources → Run Now**.',
+  TRUE
+);
+
+-- ============================================================================
+-- 15. SYSTEM SETTINGS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key     VARCHAR(100) UNIQUE NOT NULL,
+    setting_value   TEXT         DEFAULT NULL,
+    value_type      VARCHAR(20)  DEFAULT 'string',  -- string | integer | boolean | json | url
+    group_name      VARCHAR(50)  DEFAULT 'general',
+    label           VARCHAR(255) DEFAULT NULL,
+    description     TEXT         DEFAULT NULL,
+    is_public       BOOLEAN      DEFAULT FALSE,      -- safe to expose to applicant app
+    updated_by      INT          DEFAULT NULL,
+    updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+INSERT IGNORE INTO system_settings (setting_key, setting_value, value_type, group_name, label, description) VALUES
+-- General
+('portal_name',              'SA Tender Portal',        'string',  'general',  'Portal Name',              'Display name of the portal'),
+('portal_url',               'https://tenders.co.za',   'url',     'general',  'Portal URL',               'Public URL of the applicant-facing app'),
+('admin_email',              'admin@tenders.co.za',     'string',  'general',  'Admin Email',              'Primary admin contact email'),
+('support_email',            'support@tenders.co.za',   'string',  'general',  'Support Email',            'Support contact email shown on help page'),
+('default_currency',         'ZAR',                     'string',  'general',  'Default Currency',         'ISO currency code'),
+
+-- Scraper
+('scraper_enabled',          'true',                    'boolean', 'scraper',  'Scraper Enabled',          'Master switch for all scraper bots'),
+('scraper_interval_seconds', '3600',                    'integer', 'scraper',  'Default Scrape Interval',  'Seconds between automatic scrape runs per source'),
+('scraper_user_agent',       'TenderBot/1.0 (+https://tenders.co.za/bot)', 'string', 'scraper', 'Bot User Agent', 'HTTP User-Agent header sent by scraper'),
+('pdf_download_enabled',     'true',                    'boolean', 'scraper',  'PDF Download',             'Download PDF documents attached to tenders'),
+('pdf_storage_path',         'storage/pdfs',            'string',  'scraper',  'PDF Storage Path',         'Relative path for storing downloaded PDFs'),
+('pdf_max_size_mb',          '50',                      'integer', 'scraper',  'Max PDF Size (MB)',        'Skip PDFs larger than this'),
+('duplicate_check_enabled',  'true',                    'boolean', 'scraper',  'Duplicate Detection',      'Auto-flag duplicate tenders based on content hash'),
+
+-- Notifications
+('notify_admin_new_tender',  'true',                    'boolean', 'notifications', 'Notify on New Tender', 'Send in-panel notification when bot finds new tenders'),
+('notify_admin_job_failed',  'true',                    'boolean', 'notifications', 'Notify on Job Failure','Alert admins when a scraper job fails'),
+('email_alerts_enabled',     'false',                   'boolean', 'notifications', 'Email Alerts',         'Send email alerts for critical events'),
+
+-- Security
+('session_timeout_minutes',  '60',                      'integer', 'security', 'Session Timeout',          'Admin session expires after this many minutes of inactivity'),
+('max_login_attempts',       '5',                       'integer', 'security', 'Max Login Attempts',       'Lock account after this many failed logins'),
+('lockout_duration_minutes', '15',                      'integer', 'security', 'Lockout Duration',         'Minutes to lock account after too many failed logins'),
+('require_2fa_admins',       'false',                   'boolean', 'security', 'Require 2FA',              'Force all admins to use two-factor authentication'),
+('password_min_length',      '10',                      'integer', 'security', 'Min Password Length',      'Minimum characters for admin passwords'),
+
+-- Applications
+('applications_enabled',     'true',                    'boolean', 'app', 'Applications Enabled',         'Allow applicants to submit applications through the portal'),
+('registration_open',        'true',                    'boolean', 'app', 'Registration Open',            'Allow new applicants to register on the public app'),
+('terms_url',                '',                        'url',     'app', 'Terms & Conditions URL',        'Link to T&Cs shown to applicants on registration');
+
+-- ============================================================================
+-- 16. VIEWS
+-- ============================================================================
+
+-- Admin panel dashboard stats
+DROP VIEW IF EXISTS v_dashboard_stats;
+CREATE VIEW v_dashboard_stats AS
+SELECT
+    (SELECT COUNT(*) FROM raw_tenders WHERE admin_status = 'Pending')              AS pending_tenders,
+    (SELECT COUNT(*) FROM raw_tenders WHERE admin_status = 'Under Review')         AS under_review,
+    (SELECT COUNT(*) FROM raw_tenders WHERE admin_status = 'Approved')             AS approved_today,
+    (SELECT COUNT(*) FROM published_tenders WHERE status = 'Active')               AS live_tenders,
+    (SELECT COUNT(*) FROM published_tenders WHERE closing_date < CURDATE()
+        AND status = 'Active')                                                      AS expired_not_closed,
+    (SELECT COUNT(*) FROM scraper_jobs WHERE status = 'Running')                   AS scrapers_running,
+    (SELECT COUNT(*) FROM scraper_jobs WHERE status = 'Failed'
+        AND DATE(started_at) = CURDATE())                                           AS scraper_failures_today,
+    (SELECT COUNT(*) FROM raw_tenders WHERE DATE(scraped_at) = CURDATE())          AS tenders_scraped_today,
+    (SELECT COUNT(*) FROM tender_applications WHERE DATE(submitted_at) = CURDATE()) AS applications_today,
+    (SELECT COUNT(*) FROM applicants WHERE is_active = TRUE)                        AS total_applicants,
+    (SELECT COUNT(*) FROM access_requests WHERE status = 'Pending')                AS pending_access_requests,
+    (SELECT COUNT(*) FROM raw_tenders WHERE is_duplicate = TRUE
+        AND DATE(scraped_at) = CURDATE())                                           AS duplicates_today;
+
+-- Raw tender inbox view (operations page)
+DROP VIEW IF EXISTS v_raw_tender_inbox;
+CREATE VIEW v_raw_tender_inbox AS
+SELECT
+    rt.id,
+    rt.admin_status,
+    rt.title,
+    rt.reference_number,
+    rt.issuing_organisation,
+    rt.province,
+    rt.tender_type,
+    rt.estimated_value,
+    rt.currency,
+    rt.closing_date,
+    rt.published_date,
+    rt.cidb_grade,
+    rt.bbbee_requirement,
+    rt.is_duplicate,
+    rt.source_url,
+    rt.scraped_at,
+    rt.admin_notes,
+    ss.name                                             AS source_name,
+    ss.base_url                                         AS source_base_url,
+    sj.job_uid                                          AS scraper_job_uid,
+    CONCAT(aa.first_name,' ',aa.last_name)              AS assigned_to_name,
+    CONCAT(ra.first_name,' ',ra.last_name)              AS reviewed_by_name,
+    rt.reviewed_at,
+    -- Count of PDFs attached
+    (SELECT COUNT(*) FROM tender_files tf
+     WHERE tf.raw_tender_id = rt.id AND tf.is_active = TRUE)    AS pdf_count,
+    -- Days until closing
+    DATEDIFF(rt.closing_date, CURDATE())                AS days_until_closing,
+    CASE
+        WHEN rt.closing_date < CURDATE() THEN TRUE ELSE FALSE
+    END AS is_expired
+FROM raw_tenders rt
+JOIN scraper_sources ss ON rt.source_id = ss.id
+LEFT JOIN scraper_jobs sj ON rt.scraper_job_id = sj.id
+LEFT JOIN admins aa ON rt.assigned_to = aa.id
+LEFT JOIN admins ra ON rt.reviewed_by = ra.id
+ORDER BY rt.scraped_at DESC;
+
+-- Published tenders list view (operations page — live tenders)
+DROP VIEW IF EXISTS v_published_tenders_list;
+CREATE VIEW v_published_tenders_list AS
+SELECT
+    pt.id,
+    pt.title,
+    pt.reference_number,
+    pt.status,
+    pt.issuing_organisation,
+    pt.province,
+    pt.tender_type,
+    pt.estimated_value,
+    pt.currency,
+    pt.closing_date,
+    pt.closing_time,
+    pt.is_featured,
+    pt.is_urgent,
+    pt.view_count,
+    pt.application_count,
+    pt.published_at,
+    pt.approved_at,
+    tc.name                                             AS category_name,
+    tc.color                                            AS category_color,
+    CONCAT(aa.first_name,' ',aa.last_name)              AS approved_by_name,
+    CONCAT(ea.first_name,' ',ea.last_name)              AS last_edited_by_name,
+    pt.last_edited_at,
+    (SELECT COUNT(*) FROM tender_files tf WHERE tf.published_tender_id = pt.id AND tf.is_active = TRUE) AS pdf_count,
+    (SELECT COUNT(*) FROM tender_applications ta WHERE ta.published_tender_id = pt.id)                   AS application_count_live,
+    DATEDIFF(pt.closing_date, CURDATE())                AS days_until_closing,
+    CASE WHEN pt.closing_date < CURDATE() AND pt.status = 'Active' THEN TRUE ELSE FALSE END AS is_overdue
+FROM published_tenders pt
+LEFT JOIN tender_categories tc ON pt.category_id = tc.id
+LEFT JOIN admins aa ON pt.approved_by = aa.id
+LEFT JOIN admins ea ON pt.last_edited_by = ea.id
+ORDER BY pt.published_at DESC;
+
+-- Scraper health view (dashboard scraper status card)
+DROP VIEW IF EXISTS v_scraper_health;
+CREATE VIEW v_scraper_health AS
+SELECT
+    ss.id,
+    ss.name,
+    ss.base_url,
+    ss.scraper_type,
+    ss.is_active,
+    ss.is_verified,
+    ss.last_scraped_at,
+    ss.scrape_count,
+    ss.last_error,
+    -- Latest job stats
+    lj.status                                           AS last_job_status,
+    lj.started_at                                       AS last_job_started,
+    lj.finished_at                                      AS last_job_finished,
+    lj.tenders_found                                    AS last_job_tenders_found,
+    lj.tenders_new                                      AS last_job_tenders_new,
+    lj.pdfs_downloaded                                  AS last_job_pdfs,
+    lj.error_count                                      AS last_job_errors,
+    -- Pending tenders from this source awaiting admin review
+    (SELECT COUNT(*) FROM raw_tenders rt
+     WHERE rt.source_id = ss.id AND rt.admin_status = 'Pending')   AS pending_review_count,
+    -- Time since last scrape in minutes
+    TIMESTAMPDIFF(MINUTE, ss.last_scraped_at, NOW())   AS minutes_since_last_scrape
+FROM scraper_sources ss
+LEFT JOIN scraper_jobs lj ON lj.id = (
+    SELECT id FROM scraper_jobs
+    WHERE source_id = ss.id
+    ORDER BY started_at DESC LIMIT 1
+)
+ORDER BY ss.is_active DESC, ss.name ASC;
+
+-- Audit log view (admin-facing, enriched)
+DROP VIEW IF EXISTS v_audit_log;
+CREATE VIEW v_audit_log AS
+SELECT
+    al.id,
+    al.actor_type,
+    al.actor_id,
+    al.actor_email,
+    al.actor_role,
+    al.action,
+    al.entity_type,
+    al.entity_id,
+    al.entity_label,
+    al.change_summary,
+    al.ip_address,
+    al.result,
+    al.failure_reason,
+    al.created_at,
+    -- For admin actors, pull current name (may differ from snapshot if renamed)
+    CASE WHEN al.actor_type = 'admin'
+         THEN CONCAT(ad.first_name,' ',ad.last_name)
+         ELSE al.actor_email
+    END AS actor_display_name
+FROM audit_logs al
+LEFT JOIN admins ad ON al.actor_type = 'admin' AND al.actor_id = ad.id
+ORDER BY al.created_at DESC;
+
+-- Application pipeline view (applicant-facing data in one query)
+DROP VIEW IF EXISTS v_application_pipeline;
+CREATE VIEW v_application_pipeline AS
+SELECT
+    ta.id,
+    ta.status,
+    ta.submitted_at,
+    ta.is_withdrawn,
+    ta.admin_notes,
+    ta.reviewed_at,
+    ap.id                                               AS applicant_id,
+    CONCAT(ap.first_name,' ',ap.last_name)              AS applicant_name,
+    ap.email                                            AS applicant_email,
+    ap.company_name,
+    ap.bbbee_level,
+    ap.cidb_grade,
+    ap.province                                         AS applicant_province,
+    pt.id                                               AS tender_id,
+    pt.title                                            AS tender_title,
+    pt.reference_number,
+    pt.issuing_organisation,
+    pt.closing_date,
+    pt.status                                           AS tender_status,
+    tc.name                                             AS tender_category,
+    CONCAT(ra.first_name,' ',ra.last_name)              AS reviewed_by_name
+FROM tender_applications ta
+JOIN applicants         ap ON ta.applicant_id        = ap.id
+JOIN published_tenders  pt ON ta.published_tender_id = pt.id
+LEFT JOIN tender_categories tc ON pt.category_id    = tc.id
+LEFT JOIN admins ra ON ta.reviewed_by_admin          = ra.id
+ORDER BY ta.submitted_at DESC;
+
+-- ============================================================================
+-- 17. TRIGGERS
+-- ============================================================================
+
+-- Auto-update published_tenders.application_count when an application is inserted
+DROP TRIGGER IF EXISTS trg_app_insert_count;
+DELIMITER $$
+CREATE TRIGGER trg_app_insert_count
+AFTER INSERT ON tender_applications
+FOR EACH ROW
+BEGIN
+    UPDATE published_tenders
+    SET application_count = application_count + 1
+    WHERE id = NEW.published_tender_id;
+END$$
+DELIMITER ;
+
+-- Auto-update published_tenders.application_count when an application is withdrawn
+DROP TRIGGER IF EXISTS trg_app_withdraw_count;
+DELIMITER $$
+CREATE TRIGGER trg_app_withdraw_count
+AFTER UPDATE ON tender_applications
+FOR EACH ROW
+BEGIN
+    IF NEW.is_withdrawn = TRUE AND OLD.is_withdrawn = FALSE THEN
+        UPDATE published_tenders
+        SET application_count = GREATEST(application_count - 1, 0)
+        WHERE id = NEW.published_tender_id;
+    END IF;
+END$$
+DELIMITER ;
+
+-- Auto-close published tenders past their closing date (called by cron procedure)
+DROP PROCEDURE IF EXISTS sp_close_expired_tenders;
+DELIMITER $$
+CREATE PROCEDURE sp_close_expired_tenders()
+BEGIN
+    UPDATE published_tenders
+    SET status = 'Closed',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE status = 'Active'
+      AND closing_date < CURDATE();
+END$$
+DELIMITER ;
+
+-- Auto-update scraper source last_scraped_at when a job completes
+DROP TRIGGER IF EXISTS trg_job_complete_source;
+DELIMITER $$
+CREATE TRIGGER trg_job_complete_source
+AFTER UPDATE ON scraper_jobs
+FOR EACH ROW
+BEGIN
+    IF NEW.status IN ('Completed', 'Failed') AND OLD.status = 'Running' THEN
+        UPDATE scraper_sources
+        SET last_scraped_at = NEW.finished_at,
+            scrape_count    = scrape_count + IF(NEW.status = 'Completed', 1, 0),
+            last_error      = IF(NEW.status = 'Failed', NEW.error_log, NULL)
+        WHERE id = NEW.source_id;
+    END IF;
+END$$
+DELIMITER ;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================================
+-- 18. NTS API — AI TENDER BATCH INGESTION INTEGRATION
+--     QA Guide: /api/v1/tenders/ingest/batch  (REST, Bearer token, JSON)
+--     Sandbox:  https://nts.epicdev.co.za
+--     Prod:     https://nationaltenders.co.za
+--     Access token TTL: 20 min | Refresh token TTL: 30 days
+-- ============================================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ── New columns on raw_tenders (NTS-required fields from the scraper bot) ────
+
+-- states: array of SA province/state names (NTS field; supplements raw province)
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='states');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN states JSON DEFAULT NULL AFTER province','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- fields_of_expertise: array of expertise categories required by NTS
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='fields_of_expertise');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN fields_of_expertise JSON DEFAULT NULL AFTER tender_type','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- tender_document_url: publicly accessible PDF URL (NTS required)
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='tender_document_url');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN tender_document_url VARCHAR(1000) DEFAULT NULL AFTER raw_html_snippet','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- tender_document_price: optional document price in ZAR
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='tender_document_price');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN tender_document_price DECIMAL(10,2) DEFAULT NULL AFTER tender_document_url','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- tender_image_url: optional image URL for the tender
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='tender_image_url');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN tender_image_url VARCHAR(1000) DEFAULT NULL AFTER tender_document_price','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- submission_json: structured submission address (NTS optional submission object)
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='submission_json');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN submission_json JSON DEFAULT NULL AFTER submission_address','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- briefing_json: structured briefing details (NTS optional briefing object)
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_json');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_json JSON DEFAULT NULL AFTER briefing_venue','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ── New columns on published_tenders (NTS push tracking) ─────────────────────
+
+-- nts_uid: UUID returned by NTS API on successful push
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='nts_uid');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN nts_uid VARCHAR(255) DEFAULT NULL AFTER source_url','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- nts_push_status: Pending | Pushed | Duplicate | Failed
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='nts_push_status');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN nts_push_status VARCHAR(30) DEFAULT NULL AFTER nts_uid','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- set the default value separately (avoids single-quote nesting inside IF string)
+UPDATE published_tenders SET nts_push_status = 'Pending' WHERE nts_push_status IS NULL;
+ALTER TABLE published_tenders ALTER COLUMN nts_push_status SET DEFAULT 'Pending';
+
+-- nts_pushed_at: timestamp of last NTS push attempt
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='nts_pushed_at');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN nts_pushed_at TIMESTAMP NULL AFTER nts_push_status','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- nts_batch_id: FK to the batch that pushed this tender
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='nts_batch_id');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN nts_batch_id INT DEFAULT NULL AFTER nts_pushed_at','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ── NTS auth token storage ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS nts_auth_tokens (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    access_token     TEXT         NOT NULL,
+    refresh_token    TEXT         NOT NULL,
+    access_expires   TIMESTAMP    NOT NULL,   -- 20 min from issue
+    refresh_expires  TIMESTAMP    NOT NULL,   -- 30 days from issue
+    created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ── NTS push batches (one row per batch_reference submitted to NTS API) ───────
+CREATE TABLE IF NOT EXISTS nts_push_batches (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    batch_reference  VARCHAR(100) UNIQUE NOT NULL,
+    pushed_by        INT          DEFAULT NULL,
+    status           VARCHAR(30)  DEFAULT 'Pending',
+    -- Pending | Completed | PartialFail | Failed
+    total            INT          DEFAULT 0,
+    successful       INT          DEFAULT 0,
+    duplicates       INT          DEFAULT 0,
+    failed           INT          DEFAULT 0,
+    http_status_code INT          DEFAULT NULL,
+    raw_response     MEDIUMTEXT   DEFAULT NULL,
+    pushed_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pushed_by) REFERENCES admins(id) ON DELETE SET NULL
+);
+
+-- ── NTS push results (one row per tender per batch) ───────────────────────────
+CREATE TABLE IF NOT EXISTS nts_push_results (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    batch_id             INT          NOT NULL,
+    published_tender_id  INT          DEFAULT NULL,
+    tender_number        VARCHAR(255) DEFAULT NULL,
+    status               VARCHAR(30)  DEFAULT NULL,
+    -- success | duplicate | failed
+    nts_uid              VARCHAR(255) DEFAULT NULL,
+    message              TEXT         DEFAULT NULL,
+    created_at           TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (batch_id)            REFERENCES nts_push_batches(id)  ON DELETE CASCADE,
+    FOREIGN KEY (published_tender_id) REFERENCES published_tenders(id) ON DELETE SET NULL
+);
+
+-- Deferred FK: published_tenders.nts_batch_id → nts_push_batches
+SET @c=(SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='fk_pub_nts_batch');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD CONSTRAINT fk_pub_nts_batch FOREIGN KEY (nts_batch_id) REFERENCES nts_push_batches(id) ON DELETE SET NULL','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- Indexes
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='published_tenders' AND index_name='idx_pub_nts_status');
+SET @s=IF(@i=0,'CREATE INDEX idx_pub_nts_status ON published_tenders(nts_push_status)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @i=(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE table_schema=DATABASE() AND table_name='nts_push_results' AND index_name='idx_nts_result_batch');
+SET @s=IF(@i=0,'CREATE INDEX idx_nts_result_batch ON nts_push_results(batch_id)','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ── System settings for NTS API ───────────────────────────────────────────────
+INSERT IGNORE INTO system_settings (setting_key, setting_value, value_type, group_name, label, description, is_public) VALUES
+('nts_enabled',        'true',                        'boolean', 'nts', 'NTS Push Enabled',     'Master switch: allow pushing approved tenders to the NTS API',           FALSE),
+('nts_api_base_url',   'https://nts.epicdev.co.za',  'url',     'nts', 'NTS API Base URL',      'Sandbox: https://nts.epicdev.co.za | Prod: https://nationaltenders.co.za', FALSE),
+('nts_api_email',      '',                            'string',  'nts', 'NTS API Email',         'Credential email for NTS API authentication',                            FALSE),
+('nts_api_password',   '',                            'string',  'nts', 'NTS API Password',      'Credential password for NTS API authentication',                         FALSE),
+('nts_batch_size',     '100',                         'integer', 'nts', 'NTS Batch Size',        'Max tenders per batch request (NTS rate limit: 100/min)',                FALSE),
+('nts_default_source', 'eTenders',                    'string',  'nts', 'NTS Default Source',    'Fallback source value sent to NTS when scraper source name is unavailable', FALSE);
+
+-- ── Help article for NTS integration ─────────────────────────────────────────
+INSERT IGNORE INTO help_articles (category_id, title, slug, content, is_published) VALUES
+(
+  (SELECT id FROM help_categories WHERE slug='managing-tenders'),
+  'Pushing Approved Tenders to NTS',
+  'push-tenders-to-nts',
+  '## Pushing Tenders to the National Tenders System (NTS)\n\nOnce a tender is approved, it can be pushed to the NTS API for publication on the National Tenders platform.\n\n### Prerequisites\n- Tender must have **Approved** status\n- Tender must have a valid **tender document URL** (publicly accessible PDF)\n- NTS API credentials must be configured in **System Settings → NTS**\n\n### How to Push\n1. Go to **Operations → Tender Inbox**\n2. Open an approved tender or select multiple approved tenders\n3. Click **Push to NTS**\n4. Review the batch result — each tender shows: success, duplicate, or failed\n\n### Status Values\n- **Pending** — approved but not yet pushed to NTS\n- **Pushed** — successfully ingested by NTS (UID assigned)\n- **Duplicate** — NTS already has this tender; it was skipped\n- **Failed** — NTS rejected the tender (check tender_document URL or required fields)\n\n### Rate Limits\n- Authentication: 5 requests/minute\n- Batch push: 100 requests/minute\n- Maximum payload: 10 MB\n\n### Tokens\n- Access token expires every **20 minutes** (auto-refreshed)\n- Refresh token expires after **30 days** (triggers re-authentication)',
+  TRUE
+);
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================================
+-- SCHEMA COMPLETE
+-- ============================================================================
+-- Tables:
+--   roles, admins
+--   access_requests
+--   scraper_sources, scraper_jobs
+--   raw_tenders, tender_files
+--   tender_categories, tender_tags, published_tenders, published_tender_tags
+--   tender_edit_history
+--   applicants, tender_applications, application_documents, tender_bookmarks
+--   audit_logs
+--   admin_notifications
+--   help_categories, help_articles
+--   system_settings
+--   nts_auth_tokens, nts_push_batches, nts_push_results
+--
+-- Views:
+--   v_dashboard_stats       — dashboard KPI cards
+--   v_raw_tender_inbox      — operations page: pending tenders
+--   v_published_tenders_list — operations page: live tenders
+--   v_scraper_health        — scraper status per source
+--   v_audit_log             — enriched audit trail
+--   v_application_pipeline  — application management
+--
+-- Triggers:
+--   trg_app_insert_count    — keep application_count in sync
+--   trg_app_withdraw_count  — decrement on withdrawal
+--   trg_job_complete_source — update source last_scraped_at
+--
+-- Stored Procedures:
+--   sp_close_expired_tenders — called by cron to auto-close past-deadline tenders
+-- ============================================================================
+
+
+
+
+
+
+ALTER TABLE raw_tenders
+  ADD COLUMN country VARCHAR(100) DEFAULT NULL
+  AFTER province;
+
+ALTER TABLE published_tenders
+  ADD COLUMN country VARCHAR(100) DEFAULT NULL
+  AFTER province;
+
+UPDATE raw_tenders
+  SET country = 'South Africa'
+WHERE country IS NULL;
+
+UPDATE published_tenders
+  SET country = 'South Africa'
+WHERE country IS NULL;
+
+CREATE INDEX idx_raw_country ON raw_tenders(country);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- This is for clearing the portal
+
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- 🔥 CORE TENDERS
+TRUNCATE TABLE raw_tenders;
+TRUNCATE TABLE published_tenders;
+TRUNCATE TABLE published_tender_tags;
+TRUNCATE TABLE tender_categories;
+TRUNCATE TABLE tender_tags;
+
+-- 📄 TENDER ASSOCIATES
+TRUNCATE TABLE tender_files;
+TRUNCATE TABLE tender_applications;
+TRUNCATE TABLE tender_bookmarks;
+TRUNCATE TABLE tender_edit_history;
+
+-- 🧠 SCRAPER / INGESTION PIPELINE
+TRUNCATE TABLE scraper_jobs;
+TRUNCATE TABLE scraper_sources;
+
+-- 📊 LOGS / AUDIT (tender-related system activity)
+TRUNCATE TABLE audit_logs;
+
+-- 🧩 OPTIONAL SUPPORT TABLES (safe to reset for clean system state)
+TRUNCATE TABLE help_articles;
+TRUNCATE TABLE help_categories;
+
+-- 🚫 PUSH / NOTIFICATIONS (only if tied to tenders in your system)
+TRUNCATE TABLE nts_push_batches;
+TRUNCATE TABLE nts_push_results;
+TRUNCATE TABLE nts_auth_tokens;
+
+-- ⚙️ SETTINGS (ONLY if not user-critical in your system)
+TRUNCATE TABLE system_settings;
+
+SET FOREIGN_KEY_CHECKS = 1;

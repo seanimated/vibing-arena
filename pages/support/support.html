@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SA Tender Portal · Help & Support</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    (function() {
+      try { if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark'); } catch(e) {}
+    })();
+  </script>
+
+<style>
+  :root {
+    --navy:    #0B1222;
+    --navy2:   #111827;
+    --gold:    #D4A853;
+    --gold2:   #F0C97A;
+    --emerald: #0F7960;
+    --emerald2:#14A87D;
+    --red:     #C0392B;
+    --slate:   #1E2A3A;
+    --slate2:  #243447;
+    --text:    #E8EDF5;
+    --muted:   #8A9BB5;
+    --border:  rgba(212,168,83,0.15);
+    --border2: rgba(255,255,255,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(212,168,83,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,168,83,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--navy2);
+    border-right: 1px solid var(--border);
+    scrollbar-width: none;
+    position: relative; z-index: 10;
+  }
+  .sidebar::after {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 1px; height: 100%;
+    background: linear-gradient(180deg, transparent, var(--gold) 40%, transparent);
+    opacity: 0.3;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 400;
+    color: var(--muted);
+    transition: all 0.2s ease;
+    cursor: pointer; text-decoration: none;
+    position: relative;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active {
+    color: var(--gold);
+    background: rgba(212,168,83,0.08);
+    font-weight: 500;
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 60%; background: var(--gold); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .bi { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+
+  .nav-section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: rgba(138,155,181,0.5);
+    padding: 6px 14px; margin-top: 16px; font-family: 'Syne', sans-serif;
+  }
+
+  header {
+    background: rgba(11,18,34,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 40;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+    font-family: 'Syne', sans-serif; letter-spacing: 0.05em;
+  }
+  .badge-gold  { background: rgba(212,168,83,0.15); color: var(--gold2); border: 1px solid rgba(212,168,83,0.2); }
+  .badge-green { background: rgba(15,121,96,0.15); color: var(--emerald2); border: 1px solid rgba(15,121,96,0.2); }
+  .badge-muted { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border2); }
+
+  .panel {
+    background: var(--slate);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title .dot-accent {
+    width: 6px; height: 6px; background: var(--gold); border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* Form elements */
+  .form-group { margin-bottom: 20px; }
+  .form-label {
+    display: block;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted);
+    font-family: 'Syne', sans-serif; margin-bottom: 8px;
+  }
+  .form-label .req { color: var(--gold); margin-left: 2px; }
+
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--slate2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 13px; color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .form-input::placeholder, .form-textarea::placeholder { color: rgba(138,155,181,0.5); }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: rgba(212,168,83,0.4);
+    box-shadow: 0 0 0 3px rgba(212,168,83,0.07);
+  }
+  .form-input.error, .form-select.error, .form-textarea.error {
+    border-color: rgba(192,57,43,0.5);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.06);
+  }
+  .form-textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
+  .form-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238A9BB5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+  .form-select option { background: var(--slate2); color: var(--text); }
+  .error-msg {
+    font-size: 11px; color: #E57373; margin-top: 5px;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* File upload */
+  .file-drop {
+    border: 1px dashed rgba(138,155,181,0.25);
+    border-radius: 10px; padding: 20px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .file-drop:hover, .file-drop.drag { border-color: rgba(212,168,83,0.4); background: rgba(212,168,83,0.03); }
+  .file-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+
+  /* Submit button */
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color: var(--navy);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 13px 28px; border-radius: 10px;
+    border: none; cursor: pointer;
+    transition: all 0.25s;
+    box-shadow: 0 4px 16px rgba(212,168,83,0.2);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(212,168,83,0.35);
+  }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid var(--border2);
+    color: var(--muted); border-radius: 10px;
+    font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 600;
+    padding: 10px 18px; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-ghost:hover { border-color: rgba(212,168,83,0.25); color: var(--gold2); }
+
+  /* FAQ accordion */
+  .faq-item {
+    border: 1px solid var(--border2); border-radius: 10px;
+    overflow: hidden; margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+  .faq-item:hover { border-color: rgba(212,168,83,0.2); }
+  .faq-trigger {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: transparent; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--text);
+    text-align: left; gap: 12px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .faq-trigger:hover { background: rgba(255,255,255,0.02); }
+  .faq-body {
+    padding: 0 16px 14px;
+    font-size: 12px; color: var(--muted); line-height: 1.7;
+  }
+
+  /* Contact card */
+  .contact-card {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--border2);
+    border-radius: 12px; padding: 16px;
+    display: flex; align-items: flex-start; gap: 12px;
+    transition: border-color 0.2s;
+  }
+  .contact-card:hover { border-color: rgba(212,168,83,0.2); }
+  .contact-icon {
+    width: 38px; height: 38px; border-radius: 9px;
+    background: rgba(212,168,83,0.08); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--gold);
+  }
+
+  /* Success state */
+  .success-panel {
+    background: rgba(15,121,96,0.07);
+    border: 1px solid rgba(15,121,96,0.2);
+    border-radius: 16px; padding: 40px;
+    text-align: center;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    background: var(--slate); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 8px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+  @media (max-width: 1023px) { .sidebar-hidden { transform: translateX(-100%); } }
+  [x-cloak] { display: none !important; }
+  .no-tr, .no-tr * { transition: none !important; }
+</style>
+</head>
+
+<body
+  x-data="supportPage()"
+  x-init="init()"
+  class="no-tr">
+
+  <div class="flex h-screen overflow-hidden relative z-10">
+
+    <!-- ── SIDEBAR ── -->
+    <aside
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+      class="sidebar fixed lg:static top-0 left-0 z-50 h-screen w-[248px] flex flex-col flex-shrink-0 transition-transform duration-300 overflow-y-auto"
+    >
+      <!-- Logo -->
+      <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color:var(--border)">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center overflow-hidden">
+          <img src="../../static/image/logo.png" alt="Logo" class="w-full h-full object-contain p-1">
+        </div>
+        <div class="leading-tight">
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.02em">Tender Portal</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.08em">Admin Panel</div>
+        </div>
+      </div>
+
+      <!-- Nav -->
+      <nav class="px-3 py-4 flex-1">
+        <a href="../dashboard/dashboard.html" class="nav-item">
+          <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+        </a>
+        <div class="nav-section-label">Operations</div>
+        <a href="../operations/operations.html" class="nav-item">
+          <i class="bi bi-inbox"></i><span>Tender Manager</span>
+          <span class="badge badge-gold ml-auto" x-text="stats.pending_tenders ?? '…'"></span>
+        </a>
+        <div class="nav-section-label">Tracker</div>
+        <a href="../audits/audits.html" class="nav-item">
+          <i class="bi bi-clipboard-check"></i><span>Audits Tracker</span>
+        </a>
+        <div class="nav-section-label">Administration</div>
+        <a href="../users/users.html" class="nav-item">
+          <i class="bi bi-people"></i><span>User Management</span>
+        </a>
+        <div class="nav-section-label">Support</div>
+        <a href="#" class="nav-item active">
+          <i class="bi bi-question-circle"></i><span>Help & Support</span>
+        </a>
+      </nav>
+
+      <!-- User -->
+      <div class="px-3 py-4 border-t" style="border-color:var(--border)">
+        <div class="nav-item" style="cursor:default">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center text-[11px] font-bold text-[var(--navy)]"
+               x-text="getUserInitials()">SA</div>
+          <div class="min-w-0">
+            <div class="text-[12px] font-medium text-[var(--text)] truncate" x-text="userName">System Admin</div>
+            <div class="text-[10px] text-[var(--muted)]" x-text="userRole">Super Admin</div>
+          </div>
+          <a href="#" @click.prevent="logout()" class="ml-auto text-[var(--muted)] text-[14px] hover:text-red-400 transition-colors">
+            <i class="bi bi-box-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile overlay -->
+    <div @click="sidebarOpen=false" x-show="sidebarOpen"
+         class="fixed inset-0 z-40 lg:hidden" style="background:rgba(0,0,0,0.6)" x-cloak></div>
+
+    <!-- ── MAIN CONTENT ── -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between px-5 py-3">
+        <div class="flex items-center gap-3">
+          <button @click="sidebarOpen=!sidebarOpen"
+                  class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg"
+                  style="background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-list" style="color:var(--text)"></i>
+          </button>
+          <div>
+            <h1 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.3px">Help & Support</h1>
+            <p style="font-size:11px;color:var(--muted)">Submit a ticket or browse frequently asked questions</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge badge-muted hidden sm:inline-flex">
+            <i class="bi bi-envelope" style="font-size:9px"></i>
+            support@nationaltenders.co.za
+          </span>
+        </div>
+      </header>
+
+      <!-- Body -->
+      <main class="flex-1 overflow-y-auto px-5 pb-10" style="background:transparent">
+
+        <!-- Page heading -->
+        <div class="flex items-center justify-between mb-6 pt-2">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);font-family:'Syne',sans-serif;margin-bottom:4px">Admin Support</div>
+            <div style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);letter-spacing:-0.5px">How can we help?</div>
+          </div>
+          <span class="badge badge-green">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--emerald2);box-shadow:0 0 5px var(--emerald2);display:inline-block"></span>
+            Support Online
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          <!-- ── LEFT: Ticket Form ── -->
+          <div class="lg:col-span-2">
+
+            <!-- Success state -->
+            <div x-show="submitted" x-cloak class="success-panel mb-5">
+              <div style="width:60px;height:60px;background:rgba(15,121,96,0.15);border:1px solid rgba(15,121,96,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:24px;color:var(--emerald2)">
+                <i class="bi bi-check-lg"></i>
+              </div>
+              <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">Ticket Submitted</div>
+              <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Your request has been received. Check your inbox for a confirmation email.</div>
+              <div style="display:inline-block;background:rgba(212,168,83,0.1);border:1px solid rgba(212,168,83,0.2);border-radius:8px;padding:8px 20px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--gold2)" x-text="ticketRef">ERP-XXXXXXXX</div>
+              <div style="margin-top:20px">
+                <button class="btn-ghost" @click="resetForm()">
+                  <i class="bi bi-plus"></i> Submit another ticket
+                </button>
+              </div>
+            </div>
+
+            <!-- Form -->
+            <div x-show="!submitted" class="panel">
+              <div class="panel-title">
+                <span class="dot-accent"></span>
+                Submit a Support Ticket
+              </div>
+
+              <!-- API error banner -->
+              <div x-show="submitError" x-cloak
+                   class="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl"
+                   style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3)">
+                <i class="bi bi-exclamation-triangle-fill mt-0.5" style="color:#E74C3C;flex-shrink:0"></i>
+                <span style="font-size:12px;color:#E57373" x-text="submitError"></span>
+              </div>
+
+              <form @submit.prevent="submitTicket()" novalidate>
+
+                <!-- Row: Name + Email -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="form-group">
+                    <label class="form-label">Full Name <span class="req">*</span></label>
+                    <input type="text" class="form-input" :class="errors.name ? 'error' : ''"
+                           x-model="form.name" placeholder="John Doe" autocomplete="name">
+                    <div x-show="errors.name" class="error-msg"><i class="bi bi-exclamation-circle"></i><span x-text="errors.name"></span></div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Email Address <span class="req">*</span></label>
+                    <input type="email" class="form-input" :class="errors.email ? 'error' : ''"
+                           x-model="form.email" placeholder="you@domain.com" autocomplete="email">
+                    <div x-show="errors.email" class="error-msg"><i class="bi bi-exclamation-circle"></i><span x-text="errors.email"></span></div>
+                  </div>
+                </div>
+
+                <!-- Row: Company + Module -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="form-group">
+                    <label class="form-label">Company / Organisation</label>
+                    <input type="text" class="form-input" x-model="form.company" placeholder="Optional">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Affected Module</label>
+                    <select class="form-select" x-model="form.module">
+                      <option value="">— Select module —</option>
+                      <option>Dashboard</option>
+                      <option>Tender Manager</option>
+                      <option>Scraper Engine</option>
+                      <option>Audits Tracker</option>
+                      <option>User Management</option>
+                      <option>Notifications</option>
+                      <option>API / Integrations</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Row: Category + Priority -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="form-group">
+                    <label class="form-label">Category <span class="req">*</span></label>
+                    <select class="form-select" :class="errors.category ? 'error' : ''" x-model="form.category">
+                      <option value="">— Select category —</option>
+                      <option>Bug Report</option>
+                      <option>Feature Request</option>
+                      <option>Account Issue</option>
+                      <option>Billing</option>
+                      <option>General Enquiry</option>
+                      <option>Data / Reports</option>
+                      <option>Integration</option>
+                      <option>Performance</option>
+                    </select>
+                    <div x-show="errors.category" class="error-msg"><i class="bi bi-exclamation-circle"></i><span x-text="errors.category"></span></div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <div class="grid grid-cols-4 gap-2 mt-1">
+                      <template x-for="p in ['Low','Medium','High','Critical']" :key="p">
+                        <button type="button"
+                                @click="form.priority = p"
+                                :style="form.priority === p ? getPriorityStyle(p) : ''"
+                                :class="form.priority === p ? 'border-transparent' : ''"
+                                class="py-2 rounded-lg text-center transition-all"
+                                style="font-size:10px;font-weight:700;font-family:'Syne',sans-serif;letter-spacing:0.06em;border:1px solid var(--border2);color:var(--muted);cursor:pointer;background:var(--slate2)"
+                                x-text="p">
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Subject -->
+                <div class="form-group">
+                  <label class="form-label">Subject <span class="req">*</span></label>
+                  <input type="text" class="form-input" :class="errors.subject ? 'error' : ''"
+                         x-model="form.subject" placeholder="Brief summary of the issue">
+                  <div x-show="errors.subject" class="error-msg"><i class="bi bi-exclamation-circle"></i><span x-text="errors.subject"></span></div>
+                </div>
+
+                <!-- Message -->
+                <div class="form-group">
+                  <label class="form-label">Description <span class="req">*</span></label>
+                  <textarea class="form-textarea" :class="errors.message ? 'error' : ''"
+                            x-model="form.message"
+                            placeholder="Describe the issue in detail. Include steps to reproduce, expected vs actual behaviour, error messages, etc."
+                            rows="6"></textarea>
+                  <div class="flex justify-between mt-1">
+                    <div x-show="errors.message" class="error-msg"><i class="bi bi-exclamation-circle"></i><span x-text="errors.message"></span></div>
+                    <span style="font-size:10px;color:var(--muted);margin-left:auto" x-text="form.message.length + ' / 5000'"></span>
+                  </div>
+                </div>
+
+                <!-- File Upload -->
+                <div class="form-group">
+                  <label class="form-label">Screenshot <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(optional, max 10 MB)</span></label>
+                  <div class="file-drop" :class="dragOver ? 'drag' : ''"
+                       @dragover.prevent="dragOver=true" @dragleave="dragOver=false"
+                       @drop.prevent="handleDrop($event)">
+                    <input type="file" accept="image/*" @change="handleFile($event)" x-ref="fileInput">
+                    <div x-show="!fileName">
+                      <i class="bi bi-cloud-upload" style="font-size:22px;color:var(--muted);display:block;margin-bottom:8px"></i>
+                      <div style="font-size:12px;color:var(--muted)">Drop an image here or <span style="color:var(--gold2)">browse</span></div>
+                      <div style="font-size:10px;color:rgba(138,155,181,0.5);margin-top:4px">JPEG, PNG, GIF, WEBP</div>
+                    </div>
+                    <div x-show="fileName" class="flex items-center justify-center gap-2" style="font-size:12px;color:var(--emerald2)">
+                      <i class="bi bi-image"></i>
+                      <span x-text="fileName"></span>
+                      <button type="button" @click.stop="clearFile()" style="color:var(--muted);background:none;border:none;cursor:pointer;font-size:14px" class="hover:text-red-400">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Submit -->
+                <div class="flex items-center justify-between gap-3 pt-2">
+                  <p style="font-size:11px;color:var(--muted)">
+                    <i class="bi bi-shield-check" style="color:var(--gold)"></i>
+                    Fields marked <span style="color:var(--gold)">*</span> are required
+                  </p>
+                  <button type="submit" class="btn-primary" :disabled="submitting">
+                    <span x-show="submitting" class="spin"><i class="bi bi-arrow-clockwise"></i></span>
+                    <i x-show="!submitting" class="bi bi-send"></i>
+                    <span x-text="submitting ? 'Sending…' : 'Submit Ticket'"></span>
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+
+          <!-- ── RIGHT: Info Panels ── -->
+          <div class="space-y-5">
+
+            <!-- Contact Info -->
+            <div class="panel">
+              <div class="panel-title"><span class="dot-accent"></span>Contact Channels</div>
+              <div class="space-y-3">
+                <div class="contact-card">
+                  <div class="contact-icon"><i class="bi bi-envelope-fill"></i></div>
+                  <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text);font-family:'Syne',sans-serif;margin-bottom:2px">Email Support</div>
+                    <a href="mailto:support@nationaltenders.co.za" style="font-size:12px;color:var(--gold2)">support@nationaltenders.co.za</a>
+                    <div style="font-size:10px;color:var(--muted);margin-top:2px">Replies within 1 business day</div>
+                  </div>
+                </div>
+                <div class="contact-card">
+                  <div class="contact-icon"><i class="bi bi-clock-fill"></i></div>
+                  <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text);font-family:'Syne',sans-serif;margin-bottom:2px">Office Hours</div>
+                    <div style="font-size:12px;color:var(--muted)">Mon – Fri, 08:00 – 17:00</div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:2px">South Africa Standard Time (UTC+2)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SLA Info -->
+            <div class="panel">
+              <div class="panel-title"><span class="dot-accent"></span>Response SLAs</div>
+              <div class="space-y-2">
+                <template x-for="sla in slaList" :key="sla.label">
+                  <div class="flex items-center justify-between" style="font-size:12px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--border2)">
+                    <div class="flex items-center gap-2">
+                      <span :style="`width:8px;height:8px;border-radius:50%;background:${sla.color};box-shadow:0 0 5px ${sla.color};display:inline-block;flex-shrink:0`"></span>
+                      <span style="color:var(--text);font-family:'Syne',sans-serif;font-weight:600;font-size:11px" x-text="sla.label"></span>
+                    </div>
+                    <span style="color:var(--muted)" x-text="sla.time"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="panel">
+              <div class="panel-title"><span class="dot-accent"></span>Frequently Asked Questions</div>
+              <div>
+                <template x-for="(faq, idx) in faqs" :key="idx">
+                  <div class="faq-item">
+                    <button class="faq-trigger" @click="openFaq === idx ? openFaq = null : openFaq = idx">
+                      <span x-text="faq.q"></span>
+                      <i class="bi" :class="openFaq===idx ? 'bi-chevron-up' : 'bi-chevron-down'"
+                         style="font-size:11px;color:var(--muted);flex-shrink:0;transition:transform 0.2s"></i>
+                    </button>
+                    <div class="faq-body" x-show="openFaq===idx" x-transition>
+                      <span x-text="faq.a"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="showToast" x-cloak class="toast">
+    <i class="bi" :class="toastIcon" :style="toastIcon.includes('check') ? 'color:var(--emerald2)' : 'color:#E74C3C'"></i>
+    <span x-text="toastMsg"></span>
+  </div>
+
+<script>
+  const SUPPORT_API = 'support.php';
+
+  function supportPage() {
+    return {
+      sidebarOpen: false,
+      userName: 'System Admin',
+      userRole: 'Super Admin',
+      stats: {},
+
+      // Form state
+      form: {
+        name: '', email: '', company: '', module: '',
+        category: '', priority: 'Medium',
+        subject: '', message: '',
+      },
+      errors: {},
+      submitting: false,
+      submitError: '',
+      submitted: false,
+      ticketRef: '',
+
+      // File
+      selectedFile: null,
+      fileName: '',
+      dragOver: false,
+
+      // UI
+      openFaq: null,
+      showToast: false,
+      toastMsg: '',
+      toastIcon: 'bi-check-circle-fill',
+
+      slaList: [
+        { label: 'Critical', color: '#ef4444', time: '≤ 2 hours' },
+        { label: 'High',     color: '#f97316', time: '≤ 4 hours' },
+        { label: 'Medium',   color: '#f59e0b', time: '1 business day' },
+        { label: 'Low',      color: '#22c55e', time: '2–3 business days' },
+      ],
+
+      faqs: [
+        { q: 'How do I reset my admin password?', a: 'Navigate to User Management, locate your account, and use the "Reset Password" option. A secure link will be sent to your registered email.' },
+        { q: 'The scraper is not collecting new tenders – what should I do?', a: 'Check the Scraper Source Health panel on the Dashboard for failures. You can trigger a manual run from Quick Actions → Run Scraper Now. If failures persist, submit a Bug Report ticket.' },
+        { q: 'How long does scraper approval take?', a: 'Once scraped tenders land in the Pending Review queue an admin can approve and push them to the live app within minutes. SLA for bulk approval is same business day.' },
+        { q: 'Can I add a new tender source?', a: 'Yes. Use Quick Actions → Add Source on the Dashboard, or contact support if you need help configuring custom scraper rules for a new URL.' },
+        { q: 'Where can I see audit logs?', a: 'Go to Audits Tracker in the sidebar. All create, update, approve, and delete actions are logged with actor, timestamp, and entity details.' },
+      ],
+
+      init() {
+        this.loadUser();
+        requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-tr')));
+        // Pre-fill name/email from session if available
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          if (d.name)  this.form.name  = d.name;
+          if (d.email) this.form.email = d.email;
+        } catch {}
+        this.fetchPendingCount();
+      },
+
+      async fetchPendingCount() {
+        try {
+          const res = await fetch('../operations/operations.php?action=list&per_page=1', { cache: 'no-store' });
+          const j = await res.json();
+          if (j.success) this.stats = { pending_tenders: j.counts?.Pending || 0 };
+        } catch {}
+      },
+
+      loadUser() {
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          this.userName = d.name  || 'System Admin';
+          this.userRole = d.role_name || 'Super Admin';
+        } catch {}
+      },
+
+      getUserInitials() {
+        return this.userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA';
+      },
+
+      getPriorityStyle(p) {
+        const map = { Critical: '#ef4444', High: '#f97316', Medium: '#f59e0b', Low: '#22c55e' };
+        const c = map[p] || '#8A9BB5';
+        return `background:${c}20;color:${c};border-color:${c}50`;
+      },
+
+      handleFile(e) {
+        const file = e.target.files?.[0];
+        if (file) { this.selectedFile = file; this.fileName = file.name; }
+      },
+
+      handleDrop(e) {
+        this.dragOver = false;
+        const file = e.dataTransfer.files?.[0];
+        if (file) { this.selectedFile = file; this.fileName = file.name; }
+      },
+
+      clearFile() {
+        this.selectedFile = null; this.fileName = '';
+        if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+      },
+
+      validate() {
+        const e = {};
+        if (!this.form.name.trim())    e.name     = 'Full name is required.';
+        if (!this.form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email))
+                                        e.email    = 'A valid email address is required.';
+        if (!this.form.category)       e.category = 'Please select a category.';
+        if (!this.form.subject.trim()) e.subject  = 'Subject is required.';
+        if (!this.form.message.trim()) e.message  = 'Please describe your issue.';
+        if (this.form.message.length > 5000) e.message = 'Description must be under 5 000 characters.';
+        this.errors = e;
+        return Object.keys(e).length === 0;
+      },
+
+      async submitTicket() {
+        this.submitError = '';
+        if (!this.validate()) {
+          // Scroll to first error
+          this.$nextTick(() => {
+            const el = document.querySelector('.error');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+          return;
+        }
+
+        this.submitting = true;
+        try {
+          const fd = new FormData();
+          fd.append('action',   'submit_ticket');
+          fd.append('name',     this.form.name);
+          fd.append('email',    this.form.email);
+          fd.append('company',  this.form.company);
+          fd.append('module',   this.form.module);
+          fd.append('category', this.form.category);
+          fd.append('priority', this.form.priority);
+          fd.append('subject',  this.form.subject);
+          fd.append('message',  this.form.message);
+          if (this.selectedFile) fd.append('screenshot', this.selectedFile);
+
+          const res = await fetch(SUPPORT_API, { method: 'POST', body: fd });
+          const json = await res.json();
+
+          if (!json.success) throw new Error(json.error || 'Submission failed.');
+
+          this.ticketRef = json.data?.ticket_ref || 'ERP-XXXXXXXX';
+          this.submitted = true;
+          this.toast('Ticket submitted! Ref: ' + this.ticketRef, 'bi-check-circle-fill');
+        } catch (e) {
+          this.submitError = e.message;
+          this.toast(e.message, 'bi-exclamation-circle-fill');
+        } finally {
+          this.submitting = false;
+        }
+      },
+
+      resetForm() {
+        this.form = { name: '', email: '', company: '', module: '', category: '', priority: 'Medium', subject: '', message: '' };
+        this.errors = {}; this.submitError = '';
+        this.submitted = false; this.ticketRef = '';
+        this.clearFile();
+        // Re-fill from session
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          if (d.name)  this.form.name  = d.name;
+          if (d.email) this.form.email = d.email;
+        } catch {}
+      },
+
+      toast(msg, icon = 'bi-check-circle-fill') {
+        this.toastMsg = msg; this.toastIcon = icon; this.showToast = true;
+        setTimeout(() => this.showToast = false, 4000);
+      },
+
+      logout() {
+        if (confirm('Sign out of the admin panel?')) {
+          localStorage.clear(); sessionStorage.clear();
+          window.location.href = 'https://ai.nationaltenders.co.za/';
+        }
+      }
+    };
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SA Tender Portal · Audit Logs</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="icon" type="image/png" href="../../static/image/favicon.png">
+  <script>
+    (function() {
+      try { if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark'); } catch(e) {}
+    })();
+  </script>
+
+<style>
+  :root {
+    --navy:    #0B1222;
+    --navy2:   #111827;
+    --gold:    #D4A853;
+    --gold2:   #F0C97A;
+    --emerald: #0F7960;
+    --emerald2:#14A87D;
+    --red:     #C0392B;
+    --slate:   #1E2A3A;
+    --slate2:  #243447;
+    --text:    #E8EDF5;
+    --muted:   #8A9BB5;
+    --border:  rgba(212,168,83,0.15);
+    --border2: rgba(255,255,255,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--text); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(212,168,83,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,168,83,0.03) 1px, transparent 1px);
+    background-size: 48px 48px; pointer-events: none; z-index: 0;
+  }
+
+  /* Sidebar */
+  .sidebar { background: var(--navy2); border-right: 1px solid var(--border); scrollbar-width: none; position: relative; z-index: 10; }
+  .sidebar::after { content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%; background: linear-gradient(180deg, transparent, var(--gold) 40%, transparent); opacity: 0.3; }
+  .sidebar::-webkit-scrollbar { display: none; }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 400; color: var(--muted); transition: all 0.2s ease; cursor: pointer; text-decoration: none; position: relative; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: var(--gold); background: rgba(212,168,83,0.08); font-weight: 500; }
+  .nav-item.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; background: var(--gold); border-radius: 0 3px 3px 0; }
+  .nav-item .bi { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+  .nav-section-label { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(138,155,181,0.5); padding: 6px 14px; margin-top: 16px; font-family: 'Syne', sans-serif; }
+
+  header { background: rgba(11,18,34,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; }
+
+  .status-pill { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; font-family: 'Syne', sans-serif; border: 1px solid var(--border); background: rgba(255,255,255,0.03); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold2); box-shadow: 0 0 6px var(--gold2); animation: pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* KPI Cards */
+  .kpi-card { background: var(--slate); border: 1px solid var(--border2); border-radius: 14px; padding: 20px; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; }
+  .kpi-card:hover { border-color: rgba(212,168,83,0.2); transform: translateY(-1px); }
+  .kpi-value { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; letter-spacing: -1px; }
+  .kpi-label { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; font-family: 'Syne', sans-serif; }
+  .kpi-icon { position: absolute; right: 16px; top: 16px; width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .kpi-sub { margin-top: 10px; font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+
+  /* Panel */
+  .panel { background: var(--slate); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; font-family: 'Syne', sans-serif; letter-spacing: 0.05em; }
+  .badge-gold   { background: rgba(212,168,83,0.15); color: var(--gold2);    border: 1px solid rgba(212,168,83,0.2); }
+  .badge-red    { background: rgba(192,57,43,0.15);  color: #E57373;         border: 1px solid rgba(192,57,43,0.2); }
+  .badge-green  { background: rgba(15,121,96,0.15);  color: var(--emerald2); border: 1px solid rgba(15,121,96,0.2); }
+  .badge-muted  { background: rgba(255,255,255,0.05); color: var(--muted);   border: 1px solid var(--border2); }
+  .badge-blue   { background: rgba(59,130,246,0.12); color: #93c5fd;         border: 1px solid rgba(59,130,246,0.2); }
+  .badge-purple { background: rgba(139,92,246,0.12); color: #c4b5fd;         border: 1px solid rgba(139,92,246,0.2); }
+  .badge-orange { background: rgba(234,88,12,0.12);  color: #fb923c;         border: 1px solid rgba(234,88,12,0.2); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 9px; font-size: 12px; font-weight: 600; font-family: 'Syne', sans-serif; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
+  .btn-primary { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .btn-primary:hover { background: var(--gold2); }
+  .btn-ghost { background: rgba(255,255,255,0.04); color: var(--muted); border-color: var(--border2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .btn-danger { background: rgba(192,57,43,0.12); color: #E57373; border-color: rgba(192,57,43,0.25); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 7px; gap: 4px; }
+  .btn-icon { padding: 7px; width: 34px; height: 34px; justify-content: center; }
+
+  /* Filter tabs */
+  .filter-tab { padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; font-family: 'Syne', sans-serif; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; color: var(--muted); }
+  .filter-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .filter-tab.active { color: var(--gold); background: rgba(212,168,83,0.1); border-color: rgba(212,168,83,0.2); }
+  .filter-tab .count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; border-radius: 99px; background: rgba(212,168,83,0.15); color: var(--gold2); font-size: 9px; font-weight: 700; padding: 0 4px; }
+
+  /* Input / Select */
+  .field { background: var(--slate2); border: 1px solid var(--border2); color: var(--text); border-radius: 9px; padding: 8px 12px; font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+  .field:focus { border-color: rgba(212,168,83,0.4); }
+  .field::placeholder { color: var(--muted); }
+  select.field option { background: var(--navy2); }
+  .field:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Audit table */
+  .audit-table { width: 100%; border-collapse: collapse; }
+  .audit-table thead th { text-align: left; padding: 10px 14px; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-family: 'Syne', sans-serif; border-bottom: 1px solid var(--border2); white-space: nowrap; cursor: pointer; user-select: none; }
+  .audit-table thead th:hover { color: var(--text); }
+
+  .audit-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; cursor: pointer; }
+  .audit-row:hover { background: rgba(255,255,255,0.025); }
+  .audit-row td { padding: 11px 14px; vertical-align: middle; font-size: 12px; }
+
+  /* Timeline dot */
+  .tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tl-success { background: var(--emerald2); box-shadow: 0 0 5px rgba(20,168,125,0.5); }
+  .tl-failure { background: #E74C3C; box-shadow: 0 0 5px rgba(231,76,60,0.5); }
+  .tl-warning { background: var(--gold2); box-shadow: 0 0 5px rgba(240,201,122,0.4); }
+
+  /* Push leaderboard card */
+  .push-card { background: var(--slate2); border: 1px solid var(--border2); border-radius: 12px; padding: 14px; transition: border-color 0.2s; }
+  .push-card:hover { border-color: rgba(212,168,83,0.2); }
+
+  /* Skeleton */
+  .sk { background: linear-gradient(90deg, var(--slate) 25%, var(--slate2) 50%, var(--slate) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; right: 20px; z-index: 99999; background: var(--slate); border: 1px solid var(--border); border-left: 3px solid var(--gold); padding: 12px 18px; border-radius: 10px; font-size: 13px; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; animation: slideUp 0.3s ease; max-width: 340px; }
+  .toast.toast-error   { border-left-color: #E74C3C; }
+  .toast.toast-success { border-left-color: var(--emerald2); }
+  @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Pagination */
+  .page-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 7px; font-size: 12px; font-weight: 600; font-family: 'Syne', sans-serif; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; color: var(--muted); }
+  .page-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .page-btn.active { background: rgba(212,168,83,0.12); color: var(--gold2); border-color: rgba(212,168,83,0.2); }
+  .page-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* Detail drawer */
+  .drawer-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); }
+  .drawer { position: fixed; right: 0; top: 0; bottom: 0; z-index: 901; width: 480px; max-width: 95vw; background: var(--navy2); border-left: 1px solid var(--border); overflow-y: auto; box-shadow: -20px 0 60px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+  .drawer-header { position: sticky; top: 0; background: var(--navy2); border-bottom: 1px solid var(--border2); padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; z-index: 10; }
+  .drawer-body { padding: 24px; flex: 1; }
+
+  /* Data field row */
+  .data-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border2); font-size: 12px; }
+  .data-row:last-child { border-bottom: none; }
+  .data-key { width: 130px; flex-shrink: 0; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Syne', sans-serif; padding-top: 1px; }
+  .data-val { flex: 1; color: var(--text); word-break: break-word; }
+
+  /* Diff view */
+  .diff-block { background: var(--slate2); border: 1px solid var(--border2); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 11px; font-family: monospace; overflow-x: auto; }
+  .diff-old { color: #E57373; }
+  .diff-new { color: var(--emerald2); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+  [x-cloak] { display: none !important; }
+  .no-tr, .no-tr * { transition: none !important; }
+</style>
+</head>
+
+<body x-data="auditPage()" x-init="init()" class="no-tr">
+
+  <div class="flex h-screen overflow-hidden relative z-10">
+
+    <!-- ── SIDEBAR ── -->
+<aside
+  :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+  class="sidebar fixed lg:static top-0 left-0 z-50 h-screen w-[248px] flex flex-col flex-shrink-0 transition-transform duration-300 overflow-y-auto"
+>
+
+  <!-- Logo -->
+  <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color:var(--border)">
+    
+    <!-- Logo Box -->
+    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center overflow-hidden">
+      <img 
+        src="../../static/image/logo.png" 
+        alt="Logo" 
+        class="w-full h-full object-contain p-1"
+      >
+    </div>
+
+    <!-- Brand Text -->
+    <div class="leading-tight">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.02em">
+        Tender Portal
+      </div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.08em">
+        Admin Panel
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Nav -->
+  <nav class="px-3 py-4 flex-1">
+
+    <!-- Dashboard -->
+    <a href="#" class="nav-item active">
+      <i class="bi bi-speedometer2"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <div class="nav-section-label">Operations</div>
+
+    <a href="../operations/operations.html" class="nav-item">
+      <i class="bi bi-inbox"></i>
+      <span>Tender Manager</span>
+      <span class="badge badge-gold ml-auto" x-text="stats.pending_tenders ?? '…'"></span>
+    </a>
+
+    <div class="nav-section-label">Tracker</div>
+
+    <a href="../audits/audits.html" class="nav-item">
+      <i class="bi bi-clipboard-check"></i>
+      <span>Audits Tracker</span>
+    </a>
+
+    <div class="nav-section-label">Administration</div>
+
+    <a href="../users/users.html" class="nav-item">
+      <i class="bi bi-people"></i>
+      <span>User Management</span>
+    </a>
+
+    <div class="nav-section-label">Support</div>
+
+    <a href="../support/support.html" class="nav-item">
+      <i class="bi bi-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+
+  </nav>
+
+  <!-- User -->
+  <div class="px-3 py-4 border-t" style="border-color:var(--border)">
+    <div class="nav-item" style="cursor:default">
+
+      <div 
+        class="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center text-[11px] font-bold text-[var(--navy)]"
+        x-text="getUserInitials()"
+      >
+        SA
+      </div>
+
+      <div class="min-w-0">
+        <div class="text-[12px] font-medium text-[var(--text)] truncate" x-text="userName">
+          System Admin
+        </div>
+        <div class="text-[10px] text-[var(--muted)]" x-text="userRole">
+          Super Admin
+        </div>
+      </div>
+
+      <a
+        href="#"
+        @click.prevent="logout()"
+        class="ml-auto text-[var(--muted)] text-[14px] hover:text-red-400 transition-colors"
+      >
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+
+    </div>
+  </div>
+
+</aside>
+
+    <div @click="sidebarOpen=false" x-show="sidebarOpen" class="fixed inset-0 z-40 lg:hidden" style="background:rgba(0,0,0,0.6)" x-cloak></div>
+
+    <!-- ── MAIN ── -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between px-5 py-3">
+        <div class="flex items-center gap-3">
+          <button @click="sidebarOpen=!sidebarOpen" class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg" style="background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-list" style="color:var(--text)"></i>
+          </button>
+          <div>
+            <h1 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.3px">Audit &amp; Compliance</h1>
+            <p style="font-size:11px;color:var(--muted)">Immutable record of all admin, scraper and applicant actions</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="status-pill">
+            <span class="status-dot" :style="apiStatus==='error' ? 'background:#E74C3C;box-shadow:0 0 6px #E74C3C;animation:none' : ''"></span>
+            <span style="color:var(--muted)" x-text="apiStatus==='loading' ? 'Loading…' : apiStatus==='error' ? 'Offline' : 'Live'">Live</span>
+          </div>
+          <button @click="exportLogs()" class="btn btn-ghost btn-sm"><i class="bi bi-download"></i> Export</button>
+          <button @click="fetchLogs()" class="btn btn-ghost" style="width:36px;height:36px;padding:0;justify-content:center">
+            <i class="bi bi-arrow-clockwise" :class="loading ? 'spin' : ''" style="color:var(--muted);font-size:15px"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Body -->
+      <main class="flex-1 overflow-y-auto px-5 pb-8" style="background:transparent">
+
+        <!-- API error banner -->
+        <div x-show="apiStatus==='error'" x-cloak class="mb-4 mt-3 flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3)">
+          <div class="flex items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#E74C3C"></i>
+            <span style="font-size:13px;color:#E57373" x-text="apiError || 'Could not reach audit-logs.php'"></span>
+          </div>
+          <button @click="fetchLogs()" style="background:#C0392B;color:#fff;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:'Syne',sans-serif">Retry</button>
+        </div>
+
+        <!-- Page heading -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 mb-5">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);font-family:'Syne',sans-serif;margin-bottom:4px">Administration</div>
+            <div style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);letter-spacing:-0.5px">Audit Trail</div>
+          </div>
+          <span x-show="lastUpdated" style="font-size:10px;color:var(--muted)" x-text="lastUpdated"></span>
+        </div>
+
+        <!-- ── KPI Row ── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Events</div>
+            <div class="kpi-value" x-text="formatNum(summary.total_events ?? 0)">—</div>
+            <div class="kpi-icon" style="background:rgba(212,168,83,0.08)"><i class="bi bi-journal-text" style="color:var(--gold)"></i></div>
+            <div class="kpi-sub"><i class="bi bi-clock" style="color:var(--muted)"></i> All time</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Events Today</div>
+            <div class="kpi-value" x-text="formatNum(summary.events_today ?? 0)">—</div>
+            <div class="kpi-icon" style="background:rgba(15,121,96,0.08)"><i class="bi bi-calendar-check" style="color:var(--emerald2)"></i></div>
+            <div class="kpi-sub"><i class="bi bi-arrow-up" style="color:var(--emerald2)"></i> Since midnight</div>
+          </div>
+          <div class="kpi-card" :class="(summary.failures_today ?? 0) > 0 ? 'border-red-900' : ''">
+            <div class="kpi-label">Failures Today</div>
+            <div class="kpi-value" :style="(summary.failures_today ?? 0) > 0 ? 'color:#E74C3C' : ''" x-text="summary.failures_today ?? 0">—</div>
+            <div class="kpi-icon" style="background:rgba(192,57,43,0.08)"><i class="bi bi-x-octagon" style="color:#E74C3C"></i></div>
+            <div class="kpi-sub"><i class="bi bi-exclamation-circle" style="color:var(--muted)"></i> Failed actions</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Unique Actors</div>
+            <div class="kpi-value" x-text="summary.unique_actors ?? 0">—</div>
+            <div class="kpi-icon" style="background:rgba(139,92,246,0.08)"><i class="bi bi-people" style="color:#c4b5fd"></i></div>
+            <div class="kpi-sub"><i class="bi bi-person" style="color:var(--muted)"></i> In current filter</div>
+          </div>
+        </div>
+
+        <!-- ── Filter Tabs ── -->
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <template x-for="tab in tabs" :key="tab.key">
+            <button class="filter-tab" :class="activeTab===tab.key ? 'active' : ''" @click="setTab(tab.key)">
+              <i class="bi" :class="tab.icon" x-show="tab.icon" style="margin-right:2px"></i>
+              <span x-text="tab.label"></span>
+              <span class="count" x-text="summary.by_actor_type?.[tab.key] ?? summary[tab.countKey] ?? 0"></span>
+            </button>
+          </template>
+        </div>
+
+        <!-- ── Pushed By leaderboard (NTS Pushes tab) ──
+             Shows, per admin, how many tenders they've pushed to NTS and the
+             success/duplicate/failure breakdown — sourced from raw_tender.pushed
+             audit events logged by operations.php's push_nts action. -->
+        <div x-show="activeTab==='pushed'" x-cloak class="panel mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-family:'Syne',sans-serif">Pushed By</div>
+            <span style="font-size:10px;color:var(--muted)">Who has pushed tenders to NTS</span>
+          </div>
+          <template x-if="!summary.pushed_by || summary.pushed_by.length===0">
+            <p style="font-size:12px;color:var(--muted)">No NTS pushes have been logged yet.</p>
+          </template>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" x-show="summary.pushed_by && summary.pushed_by.length>0">
+            <template x-for="p in summary.pushed_by" :key="(p.actor_id ?? 'na')+'-'+p.actor_name">
+              <div class="push-card">
+                <div style="font-size:12px;font-weight:600;color:var(--text)" x-text="p.actor_name || 'Unknown'"></div>
+                <div style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700;color:var(--gold2);margin-top:4px" x-text="p.push_count"></div>
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px">Tenders Pushed</div>
+                <div class="flex flex-wrap gap-1 mt-2">
+                  <span class="badge badge-green" x-text="p.success_count+' pushed'"></span>
+                  <span class="badge badge-purple" x-show="p.duplicate_count>0" x-text="p.duplicate_count+' dupe'"></span>
+                  <span class="badge badge-red" x-show="p.failure_count>0" x-text="p.failure_count+' failed'"></span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:8px">Last push: <span x-text="relTime(p.last_push_at)"></span></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ── Search + filter bar ── -->
+        <div class="panel mb-4" style="padding:14px 18px">
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Search -->
+            <div class="relative flex-1" style="min-width:200px">
+              <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px"></i>
+              <input x-model="search" @input.debounce.350ms="fetchLogs()" type="text" placeholder="Search action, actor, entity…" class="field w-full" style="padding-left:32px">
+            </div>
+            <!-- Action filter -->
+            <select x-model="filterAction" @change="fetchLogs()" class="field" style="min-width:160px" :disabled="activeTab==='pushed'" :title="activeTab==='pushed' ? 'Locked to Pushed while on the NTS Pushes tab' : ''">
+              <option value="">All Actions</option>
+              <optgroup label="Auth">
+                <option value="admin.login">Login</option>
+                <option value="admin.logout">Logout</option>
+                <option value="admin.login_failed">Login Failed</option>
+              </optgroup>
+              <optgroup label="Tenders">
+                <option value="raw_tender.approved">Approved</option>
+                <option value="raw_tender.rejected">Rejected</option>
+                <option value="raw_tender.edited">Edited</option>
+                <option value="raw_tender.pushed">Pushed</option>
+                <option value="raw_tender.deleted">Deleted</option>
+              </optgroup>
+              <optgroup label="Scraper">
+                <option value="scraper_job.started">Job Started</option>
+                <option value="scraper_job.completed">Job Completed</option>
+                <option value="scraper_job.failed">Job Failed</option>
+              </optgroup>
+              <optgroup label="Admin">
+                <option value="admin.created">Admin Created</option>
+                <option value="admin.updated">Admin Updated</option>
+                <option value="access_request.approved">Access Approved</option>
+                <option value="access_request.rejected">Access Rejected</option>
+              </optgroup>
+            </select>
+            <!-- Result filter -->
+            <select x-model="filterResult" @change="fetchLogs()" class="field" style="min-width:120px">
+              <option value="">All Results</option>
+              <option value="success">Success</option>
+              <option value="failure">Failure</option>
+              <option value="warning">Warning</option>
+            </select>
+            <!-- Date from -->
+            <input x-model="dateFrom" @change="fetchLogs()" type="date" class="field" style="min-width:140px" placeholder="From">
+            <!-- Date to -->
+            <input x-model="dateTo"   @change="fetchLogs()" type="date" class="field" style="min-width:140px" placeholder="To">
+            <!-- Clear -->
+            <button x-show="search||filterAction||filterResult||dateFrom||dateTo" @click="clearFilters()" class="btn btn-ghost btn-sm">
+              <i class="bi bi-x"></i> Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Table ── -->
+        <div class="panel" style="padding:0;overflow:hidden">
+          <div style="overflow-x:auto">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th @click="sort('created_at')" style="padding-left:18px">
+                    Time <i class="bi" :class="sortBy==='created_at_desc' ? 'bi-caret-down-fill' : sortBy==='created_at_asc' ? 'bi-caret-up-fill' : 'bi-caret-down'"></i>
+                  </th>
+                  <th>Result</th>
+                  <th @click="sort('action')">
+                    Action <i class="bi" :class="sortBy.startsWith('action') ? (sortBy.endsWith('asc') ? 'bi-caret-up-fill' : 'bi-caret-down-fill') : 'bi-caret-down'"></i>
+                  </th>
+                  <th>Actor</th>
+                  <th>Entity</th>
+                  <th>IP Address</th>
+                  <th style="text-align:right;padding-right:18px">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+
+                <!-- Skeleton -->
+                <template x-if="loading && logs.length === 0">
+                  <template x-for="n in 12" :key="n">
+                    <tr class="audit-row">
+                      <td style="padding-left:18px"><div class="sk" style="width:90px;height:11px"></div></td>
+                      <td><div class="sk" style="width:60px;height:18px;border-radius:20px"></div></td>
+                      <td><div class="sk" style="width:140px;height:11px"></div></td>
+                      <td><div class="sk" style="width:100px;height:11px"></div></td>
+                      <td><div class="sk" style="width:120px;height:11px"></div></td>
+                      <td><div class="sk" style="width:80px;height:11px"></div></td>
+                      <td></td>
+                    </tr>
+                  </template>
+                </template>
+
+                <!-- Empty state -->
+                <template x-if="!loading && logs.length === 0">
+                  <tr>
+                    <td colspan="7" style="text-align:center;padding:48px 0">
+                      <i class="bi bi-journal-x" style="font-size:32px;color:var(--muted);opacity:0.4;display:block;margin-bottom:12px"></i>
+                      <p style="font-size:13px;color:var(--muted)">No audit events match your filters.</p>
+                    </td>
+                  </tr>
+                </template>
+
+                <!-- Log rows -->
+                <template x-for="log in logs" :key="log.id">
+                  <tr class="audit-row" @click="openDetail(log)">
+                    <td style="padding-left:18px">
+                      <div style="font-size:11px;color:var(--text);font-variant-numeric:tabular-nums" x-text="formatDateTime(log.created_at)"></div>
+                      <div style="font-size:10px;color:var(--muted)" x-text="relTime(log.created_at)"></div>
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <div class="tl-dot" :class="resultDot(log.result)"></div>
+                        <span class="badge" :class="resultBadge(log.result)" x-text="capitalize(log.result ?? 'success')"></span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style="font-size:11px;font-weight:500;color:var(--text)" x-text="formatAction(log.action)"></div>
+                      <div style="font-size:10px;color:var(--muted)" x-text="log.action"></div>
+                    </td>
+                    <td>
+                      <div style="font-size:11px;color:var(--text)" x-text="log.actor_display_name || log.actor_email || 'System'"></div>
+                      <div style="font-size:10px" :class="actorTypeColor(log.actor_type)" x-text="capitalize(log.actor_type ?? 'system')"></div>
+                    </td>
+                    <td>
+                      <div style="font-size:11px;color:var(--text);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="log.entity_label" x-text="log.entity_label || '—'"></div>
+                      <div style="font-size:10px;color:var(--muted)" x-text="log.entity_type ? log.entity_type + (log.entity_id ? ' #'+log.entity_id : '') : ''"></div>
+                    </td>
+                    <td>
+                      <span style="font-size:11px;color:var(--muted);font-family:monospace" x-text="log.ip_address || '—'"></span>
+                    </td>
+                    <td style="text-align:right;padding-right:14px">
+                      <button @click.stop="openDetail(log)" class="btn btn-ghost btn-icon btn-sm">
+                        <i class="bi bi-chevron-right" style="font-size:12px"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="flex items-center justify-between px-5 py-3 border-t" style="border-color:var(--border2)">
+            <span style="font-size:11px;color:var(--muted)" x-text="paginationText"></span>
+            <div class="flex items-center gap-1">
+              <button class="page-btn" :disabled="currentPage===1" @click="goPage(currentPage-1)"><i class="bi bi-chevron-left" style="font-size:11px"></i></button>
+              <template x-for="p in pageNumbers" :key="p">
+                <button class="page-btn" :class="p===currentPage ? 'active' : ''" @click="goPage(p)" x-text="p"></button>
+              </template>
+              <button class="page-btn" :disabled="currentPage===totalPages" @click="goPage(currentPage+1)"><i class="bi bi-chevron-right" style="font-size:11px"></i></button>
+            </div>
+            <div class="flex items-center gap-2">
+              <span style="font-size:11px;color:var(--muted)">Per page</span>
+              <select x-model="perPage" @change="currentPage=1;fetchLogs()" class="field" style="padding:4px 8px;font-size:11px;min-width:60px">
+                <option value="25">25</option><option value="50">50</option><option value="100">100</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       DETAIL DRAWER
+  ══════════════════════════════════════════════════ -->
+  <div x-show="drawerOpen" x-cloak class="drawer-overlay" @click="drawerOpen=false"></div>
+  <div x-show="drawerOpen" x-cloak class="drawer" style="transition:transform 0.3s ease" :style="drawerOpen ? 'transform:translateX(0)' : 'transform:translateX(100%)'">
+    <div class="drawer-header">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text)">Event Detail</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">ID #<span x-text="detail.id"></span></div>
+      </div>
+      <button @click="drawerOpen=false" class="btn btn-ghost btn-icon"><i class="bi bi-x-lg" style="font-size:14px"></i></button>
+    </div>
+    <div class="drawer-body">
+
+      <!-- Result + Action heading -->
+      <div class="flex items-center gap-3 mb-5">
+        <div class="tl-dot" :class="resultDot(detail.result)" style="width:12px;height:12px"></div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text)" x-text="formatAction(detail.action)"></div>
+          <div style="font-size:11px;color:var(--muted)" x-text="detail.action"></div>
+        </div>
+        <span class="badge ml-auto" :class="resultBadge(detail.result)" x-text="capitalize(detail.result ?? 'success')"></span>
+      </div>
+
+      <!-- Core fields -->
+      <div class="mb-5">
+        <div class="data-row">
+          <div class="data-key">Timestamp</div>
+          <div class="data-val" x-text="formatDateTime(detail.created_at)"></div>
+        </div>
+        <div class="data-row">
+          <div class="data-key">Actor</div>
+          <div class="data-val">
+            <span x-text="detail.actor_display_name || detail.actor_email || 'System'"></span>
+            <span class="badge badge-muted ml-2" :class="actorTypeBadge(detail.actor_type)" x-text="capitalize(detail.actor_type ?? 'system')"></span>
+          </div>
+        </div>
+        <div class="data-row" x-show="detail.actor_role">
+          <div class="data-key">Role</div>
+          <div class="data-val" x-text="detail.actor_role"></div>
+        </div>
+        <div class="data-row" x-show="detail.entity_type">
+          <div class="data-key">Entity</div>
+          <div class="data-val">
+            <span x-text="detail.entity_type"></span>
+            <span x-show="detail.entity_id" style="color:var(--muted)"> #<span x-text="detail.entity_id"></span></span>
+            <div x-show="detail.entity_label" style="color:var(--muted);font-size:11px;margin-top:2px" x-text="detail.entity_label"></div>
+          </div>
+        </div>
+        <div class="data-row" x-show="detail.ip_address">
+          <div class="data-key">IP Address</div>
+          <div class="data-val" style="font-family:monospace;font-size:11px" x-text="detail.ip_address"></div>
+        </div>
+        <div class="data-row" x-show="detail.request_url">
+          <div class="data-key">Request URL</div>
+          <div class="data-val" style="font-size:10px;color:var(--muted);word-break:break-all" x-text="detail.request_url"></div>
+        </div>
+        <div class="data-row" x-show="detail.change_summary">
+          <div class="data-key">Summary</div>
+          <div class="data-val" x-text="detail.change_summary"></div>
+        </div>
+        <div class="data-row" x-show="detail.failure_reason">
+          <div class="data-key">Failure Reason</div>
+          <div class="data-val" style="color:#E57373" x-text="detail.failure_reason"></div>
+        </div>
+      </div>
+
+      <!-- Diff: old_data / new_data -->
+      <template x-if="detail.old_data || detail.new_data">
+        <div class="mb-5">
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-family:'Syne',sans-serif;margin-bottom:10px">Change Data</div>
+          <div x-show="detail.old_data">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Before</div>
+            <div class="diff-block diff-old" x-text="prettyJson(detail.old_data)"></div>
+          </div>
+          <div x-show="detail.new_data" :class="detail.old_data ? 'mt-3' : ''">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">After</div>
+            <div class="diff-block diff-new" x-text="prettyJson(detail.new_data)"></div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="toast.show" x-cloak class="toast" :class="'toast-'+toast.type">
+    <i class="bi" :class="toast.icon"></i>
+    <span x-text="toast.msg"></span>
+  </div>
+
+<script>
+  const API = 'audits.php';
+
+  function relTime(iso) {
+    if (!iso) return '';
+    const m = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+
+  function auditPage() {
+    return {
+      // UI
+      sidebarOpen: false,
+      loading: true,
+      stats: {},
+      apiStatus: 'loading',
+      apiError: '',
+      lastUpdated: '',
+      userName: 'System Admin',
+      userRole: 'Super Admin',
+      toast: { show: false, msg: '', icon: '', type: 'success' },
+
+      // Tabs
+      // 'pushed' is action-based (raw_tender.pushed) rather than actor_type-based —
+      // handled as a special case in fetchLogs(). It surfaces the "who pushed
+      // each tender" view via the leaderboard panel + a locked Action filter.
+      activeTab: 'all',
+      tabs: [
+        { key: 'all',       label: 'All Events',  countKey: 'total_events' },
+        { key: 'admin',     label: 'Admin',       countKey: 'count_admin'  },
+        { key: 'scraper',   label: 'Scraper',     countKey: 'count_scraper'},
+        { key: 'applicant', label: 'Applicants',  countKey: 'count_applicant'},
+        { key: 'system',    label: 'System',      countKey: 'count_system' },
+        { key: 'pushed',    label: 'NTS Pushes',  countKey: 'count_pushed', icon: 'bi-send' },
+      ],
+
+      // Filters
+      search: '',
+      filterAction: '',
+      filterResult: '',
+      dateFrom: '',
+      dateTo: '',
+      sortBy: 'created_at_desc',
+
+      // Data
+      logs: [],
+      summary: {},
+      totalRows: 0,
+      currentPage: 1,
+      perPage: 25,
+
+      // Detail drawer
+      drawerOpen: false,
+      detail: {},
+
+      // Computed
+      get totalPages() { return Math.max(1, Math.ceil(this.totalRows / this.perPage)); },
+      get paginationText() {
+        const from = (this.currentPage - 1) * this.perPage + 1;
+        const to   = Math.min(this.currentPage * this.perPage, this.totalRows);
+        return this.totalRows ? `${from}–${to} of ${this.totalRows} events` : '0 events';
+      },
+      get pageNumbers() {
+        const pages = [], tp = this.totalPages, cp = this.currentPage;
+        for (let i = Math.max(1, cp - 2); i <= Math.min(tp, cp + 2); i++) pages.push(i);
+        return pages;
+      },
+
+      // Init
+      init() {
+        this.loadUser();
+        requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-tr')));
+        this.fetchLogs();
+        this.fetchPendingCount();
+      },
+
+      async fetchPendingCount() {
+        try {
+          const res = await fetch('../operations/operations.php?action=list&per_page=1', { cache: 'no-store' });
+          const j = await res.json();
+          if (j.success) this.stats = { pending_tenders: j.counts?.Pending || 0 };
+        } catch {}
+      },
+
+      loadUser() {
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          this.userName = d.name || 'System Admin';
+          this.userRole = d.role_name || 'Super Admin';
+        } catch {}
+      },
+      getUserInitials() {
+        return this.userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA';
+      },
+
+      // Fetch
+      async fetchLogs() {
+        this.loading = true; this.apiStatus = 'loading';
+        // The "pushed" tab is action-based (raw_tender.pushed), not actor_type-based,
+        // so it's handled separately from the other tabs: actor_type is cleared and
+        // filter_action is forced to raw_tender.pushed regardless of the dropdown.
+        const isPushedTab = this.activeTab === 'pushed';
+        const params = new URLSearchParams({
+          action:     'list',
+          actor_type: (this.activeTab === 'all' || isPushedTab) ? '' : this.activeTab,
+          search:     this.search,
+          filter_action: isPushedTab ? 'raw_tender.pushed' : this.filterAction,
+          result:     this.filterResult,
+          date_from:  this.dateFrom,
+          date_to:    this.dateTo,
+          sort:       this.sortBy,
+          page:       this.currentPage,
+          per_page:   this.perPage,
+        });
+        try {
+          const res = await fetch(`${API}?${params}`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const j = await res.json();
+          if (!j.success) throw new Error(j.error || 'API error');
+          this.logs     = j.logs    || [];
+          this.totalRows= j.total   || 0;
+          this.summary  = j.summary || {};
+          this.apiStatus = 'connected'; this.apiError = '';
+          this.lastUpdated = 'Updated ' + relTime(new Date().toISOString());
+        } catch (e) {
+          this.apiStatus = 'error'; this.apiError = e.message;
+        } finally { this.loading = false; }
+      },
+
+      setTab(key) { this.activeTab = key; this.currentPage = 1; this.fetchLogs(); },
+      clearFilters() { this.search=''; this.filterAction=''; this.filterResult=''; this.dateFrom=''; this.dateTo=''; this.fetchLogs(); },
+      sort(col) {
+        const asc = `${col}_asc`, desc = `${col}_desc`;
+        this.sortBy = this.sortBy === asc ? desc : asc;
+        this.fetchLogs();
+      },
+      goPage(p) { if (p < 1 || p > this.totalPages) return; this.currentPage = p; this.fetchLogs(); },
+
+      openDetail(log) { this.detail = log; this.drawerOpen = true; },
+
+      // Export
+      async exportLogs() {
+        this.showToast('Preparing export…', 'bi-download', 'success');
+        const isPushedTab = this.activeTab === 'pushed';
+        const params = new URLSearchParams({
+          action:        'export',
+          actor_type:    (this.activeTab === 'all' || isPushedTab) ? '' : this.activeTab,
+          search:        this.search,
+          filter_action: isPushedTab ? 'raw_tender.pushed' : this.filterAction,
+          result:        this.filterResult,
+          date_from:     this.dateFrom,
+          date_to:       this.dateTo,
+        });
+        try {
+          const res = await fetch(`${API}?${params}`);
+          const j = await res.json();
+          if (!j.success) throw new Error(j.error);
+
+          const ws = XLSX.utils.json_to_sheet(j.logs);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Audit Logs');
+          const maxW = j.logs.length ? Object.keys(j.logs[0]).map(k => ({
+            wch: Math.max(k.length, ...j.logs.slice(0, 20).map(r => String(r[k] || '').length))
+          })) : [];
+          ws['!cols'] = maxW;
+          const date = new Date().toISOString().slice(0, 10);
+          XLSX.writeFile(wb, `audit_log_export_${date}.xlsx`);
+          this.showToast(`Exported ${j.logs.length} events.`, 'bi-check-circle-fill', 'success');
+        } catch (e) {
+          this.showToast('Export failed: ' + e.message, 'bi-exclamation-triangle-fill', 'error');
+        }
+      },
+
+      // Helpers
+      formatDateTime(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      },
+      formatNum(n) { return Number(n).toLocaleString(); },
+      capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; },
+      relTime,
+
+      formatAction(action) {
+        if (!action) return '—';
+        const map = {
+          'admin.login':              'Admin Login',
+          'admin.logout':             'Admin Logout',
+          'admin.login_failed':       'Login Failed',
+          'admin.created':            'Admin Created',
+          'admin.updated':            'Admin Updated',
+          'admin.deactivated':        'Admin Deactivated',
+          'admin.password_reset':     'Password Reset',
+          'raw_tender.received':      'Tender Received',
+          'raw_tender.approved':      'Tender Approved',
+          'raw_tender.rejected':      'Tender Rejected',
+          'raw_tender.edited':        'Tender Edited',
+          'raw_tender.pushed':        'Pushed to NTS',
+          'raw_tender.deleted':       'Tender Deleted',
+          'raw_tender.assigned':      'Tender Assigned',
+          'published_tender.created': 'Published',
+          'published_tender.edited':  'Published Edited',
+          'published_tender.archived':'Tender Archived',
+          'scraper_job.started':      'Scraper Started',
+          'scraper_job.completed':    'Scraper Completed',
+          'scraper_job.failed':       'Scraper Failed',
+          'access_request.submitted': 'Access Requested',
+          'access_request.approved':  'Access Approved',
+          'access_request.rejected':  'Access Rejected',
+          'application.submitted':    'Application Submitted',
+          'application.withdrawn':    'Application Withdrawn',
+          'settings.updated':         'Settings Updated',
+          'source.created':           'Source Added',
+          'source.toggled':           'Source Toggled',
+        };
+        return map[action] || action.replace(/\./g, ' › ').replace(/_/g, ' ');
+      },
+
+      resultDot(r) {
+        return { success: 'tl-success', failure: 'tl-failure', warning: 'tl-warning' }[r] || 'tl-success';
+      },
+      resultBadge(r) {
+        return { success: 'badge-green', failure: 'badge-red', warning: 'badge-gold' }[r] || 'badge-muted';
+      },
+      actorTypeColor(t) {
+        return { admin: 'text-yellow-400', scraper: 'text-blue-400', applicant: 'text-purple-400', system: 'text-gray-400' }[t] || 'text-gray-400';
+      },
+      actorTypeBadge(t) {
+        return { admin: 'badge-gold', scraper: 'badge-blue', applicant: 'badge-purple', system: 'badge-muted' }[t] || 'badge-muted';
+      },
+
+      prettyJson(val) {
+        if (!val) return '';
+        try {
+          const obj = typeof val === 'string' ? JSON.parse(val) : val;
+          return JSON.stringify(obj, null, 2);
+        } catch { return String(val); }
+      },
+
+      showToast(msg, icon = 'bi-check-circle-fill', type = 'success') {
+        this.toast = { show: true, msg, icon, type };
+        setTimeout(() => this.toast.show = false, 3500);
+      },
+
+      logout() {
+        if (confirm('Sign out?')) { localStorage.clear(); sessionStorage.clear(); window.location.href = 'https://ai.nationaltenders.co.za/'; }
+      },
+    };
+  }
+</script>
+</body>
+</html>

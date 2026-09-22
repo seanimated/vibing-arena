@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SA Tender Portal · Admin Accounts</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/png" href="../../static/image/favicon.png">
+  <script>
+    (function() {
+      try { if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark'); } catch(e) {}
+    })();
+  </script>
+
+<style>
+  :root {
+    --navy:    #0B1222;
+    --navy2:   #111827;
+    --gold:    #D4A853;
+    --gold2:   #F0C97A;
+    --emerald: #0F7960;
+    --emerald2:#14A87D;
+    --red:     #C0392B;
+    --slate:   #1E2A3A;
+    --slate2:  #243447;
+    --text:    #E8EDF5;
+    --muted:   #8A9BB5;
+    --border:  rgba(212,168,83,0.15);
+    --border2: rgba(255,255,255,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(212,168,83,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,168,83,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────────────────── */
+  .sidebar {
+    background: var(--navy2);
+    border-right: 1px solid var(--border);
+    scrollbar-width: none;
+    position: relative; z-index: 10;
+  }
+  .sidebar::after {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 1px; height: 100%;
+    background: linear-gradient(180deg, transparent, var(--gold) 40%, transparent);
+    opacity: 0.3;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 400; color: var(--muted);
+    transition: all 0.2s ease; cursor: pointer; text-decoration: none;
+    position: relative;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: var(--gold); background: rgba(212,168,83,0.08); font-weight: 500; }
+  .nav-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 60%; background: var(--gold); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .bi { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+  .nav-section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: rgba(138,155,181,0.5);
+    padding: 6px 14px; margin-top: 16px; font-family: 'Syne', sans-serif;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  header {
+    background: rgba(11,18,34,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 40;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; font-family: 'Syne', sans-serif;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--gold2); box-shadow: 0 0 6px var(--gold2);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* ── Badges ──────────────────────────────────────────────────────────── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+    font-family: 'Syne', sans-serif; letter-spacing: 0.05em;
+  }
+  .badge-gold   { background: rgba(212,168,83,0.15); color: var(--gold2);   border: 1px solid rgba(212,168,83,0.2); }
+  .badge-red    { background: rgba(192,57,43,0.15);  color: #E57373;        border: 1px solid rgba(192,57,43,0.2); }
+  .badge-green  { background: rgba(15,121,96,0.15);  color: var(--emerald2);border: 1px solid rgba(15,121,96,0.2); }
+  .badge-muted  { background: rgba(255,255,255,0.05);color: var(--muted);   border: 1px solid var(--border2); }
+  .badge-blue   { background: rgba(59,130,246,0.15); color: #93c5fd;        border: 1px solid rgba(59,130,246,0.2); }
+  .badge-purple { background: rgba(168,85,247,0.15); color: #c4b5fd;        border: 1px solid rgba(168,85,247,0.2); }
+
+  /* ── KPI mini cards ──────────────────────────────────────────────────── */
+  .kpi-card {
+    background: var(--slate);
+    border: 1px solid var(--border2);
+    border-radius: 16px; padding: 24px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .kpi-card:hover { border-color: rgba(212,168,83,0.25); transform: translateY(-2px); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .kpi-card:hover::before { opacity: 1; }
+  .kpi-card .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px; font-weight: 700; color: var(--text);
+    line-height: 1; letter-spacing: -1px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .kpi-card .kpi-icon {
+    position: absolute; right: 20px; top: 20px;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+  }
+  .kpi-card .kpi-sub { margin-top: 12px; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .kpi-alert { border-color: rgba(212,168,83,0.3); }
+  .kpi-alert .kpi-value { color: var(--gold2); }
+  .kpi-success { border-color: rgba(15,121,96,0.3); }
+  .kpi-success .kpi-value { color: var(--emerald2); }
+  .kpi-danger { border-color: rgba(192,57,43,0.3); }
+  .kpi-danger .kpi-value { color: #E74C3C; }
+
+  /* ── Panel ───────────────────────────────────────────────────────────── */
+  .panel { background: var(--slate); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+    display: flex; align-items: center;
+  }
+  .panel-title .dot-accent { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 9px; border: none;
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; text-decoration: none; letter-spacing: 0.02em;
+  }
+  .btn:disabled { opacity: 0.5; pointer-events: none; }
+  .btn-primary  { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: var(--navy); }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(212,168,83,0.3); }
+  .btn-ghost    { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--border2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn-danger   { background: rgba(192,57,43,0.15); color: #E57373; border: 1px solid rgba(192,57,43,0.2); }
+  .btn-danger:hover { background: rgba(192,57,43,0.25); color: #fc8181; }
+  .btn-sm       { padding: 5px 10px; font-size: 11px; border-radius: 7px; }
+
+  /* ── Table ───────────────────────────────────────────────────────────── */
+  .user-table { width: 100%; border-collapse: collapse; }
+  .user-table th {
+    font-family: 'Syne', sans-serif;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted);
+    padding: 10px 16px; text-align: left;
+    border-bottom: 1px solid var(--border2); white-space: nowrap;
+  }
+  .user-table td { padding: 14px 16px; border-bottom: 1px solid var(--border2); font-size: 13px; vertical-align: middle; }
+  .user-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+  .user-table tbody tr:last-child td { border-bottom: none; }
+
+  /* ── Avatar ──────────────────────────────────────────────────────────── */
+  .avatar {
+    width: 36px; height: 36px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0;
+  }
+
+  /* ── Modal ───────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal {
+    background: var(--navy2); border: 1px solid var(--border);
+    border-radius: 20px; width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto; scrollbar-width: none;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .modal::-webkit-scrollbar { display: none; }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-header { padding: 24px 28px 20px; border-bottom: 1px solid var(--border2); }
+  .modal-body   { padding: 24px 28px; }
+  .modal-footer { padding: 0 28px 24px; display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── Form ────────────────────────────────────────────────────────────── */
+  .form-group { margin-bottom: 18px; }
+  .form-label {
+    display: block; font-family: 'Syne', sans-serif;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+  }
+  .form-input {
+    width: 100%; padding: 10px 13px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+    border-radius: 9px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+  }
+  .form-input:focus { border-color: rgba(212,168,83,0.4); box-shadow: 0 0 0 3px rgba(212,168,83,0.08); }
+  .form-input::placeholder { color: var(--muted); }
+  .form-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+  /* ── Role cards ──────────────────────────────────────────────────────── */
+  .role-card {
+    padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--border2); cursor: pointer; transition: all 0.2s;
+    background: rgba(255,255,255,0.02);
+  }
+  .role-card:hover { border-color: rgba(212,168,83,0.25); background: rgba(212,168,83,0.04); }
+  .role-card.selected { border-color: var(--gold); background: rgba(212,168,83,0.08); }
+  .role-card .role-name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: var(--text); }
+  .role-card .role-desc { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* ── Filter tabs ─────────────────────────────────────────────────────── */
+  .filter-tab {
+    padding: 6px 14px; border-radius: 8px;
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; color: var(--muted);
+    background: transparent; border: none;
+  }
+  .filter-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .filter-tab.active { color: var(--gold); background: rgba(212,168,83,0.1); }
+
+  /* ── Activity feed ───────────────────────────────────────────────────── */
+  .activity-feed { border-left: 1px solid var(--border); margin-left: 8px; }
+  .activity-item { position: relative; padding-left: 20px; margin-bottom: 18px; }
+  .activity-dot  { position: absolute; left: -5px; top: 3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--navy2); }
+
+  /* ── Toggle switch ───────────────────────────────────────────────────── */
+  .toggle-track {
+    position: relative; width: 40px; height: 22px; border-radius: 99px;
+    cursor: pointer; transition: background 0.25s; flex-shrink: 0;
+  }
+  .toggle-thumb {
+    position: absolute; top: 3px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; transition: left 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+
+  /* ── Skeleton ────────────────────────────────────────────────────────── */
+  .sk {
+    background: linear-gradient(90deg, var(--slate) 25%, var(--slate2) 50%, var(--slate) 75%);
+    background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    background: var(--slate); border: 1px solid var(--border);
+    padding: 12px 18px; border-radius: 10px; font-size: 13px; color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  .search-wrap { position: relative; }
+  .search-wrap .bi-search { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+
+  [x-cloak] { display: none !important; }
+  .no-tr, .no-tr * { transition: none !important; }
+</style>
+</head>
+
+<body
+  x-data="adminsPage()"
+  x-init="init()"
+  class="no-tr">
+
+  <!-- Preloader -->
+  <div x-show="loading" x-cloak
+       class="fixed inset-0 z-[99999] flex items-center justify-center"
+       style="background:var(--navy)">
+    <div style="width:48px;height:48px;border:3px solid rgba(212,168,83,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  </div>
+
+  <div class="flex h-screen overflow-hidden relative z-10">
+
+<!-- ── SIDEBAR ── -->
+<aside
+  :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+  class="sidebar fixed lg:static top-0 left-0 z-50 h-screen w-[248px] flex flex-col flex-shrink-0 transition-transform duration-300 overflow-y-auto"
+>
+
+  <!-- Logo -->
+  <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color:var(--border)">
+    
+    <!-- Logo Box -->
+    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center overflow-hidden">
+      <img 
+        src="../../static/image/logo.png" 
+        alt="Logo" 
+        class="w-full h-full object-contain p-1"
+      >
+    </div>
+
+    <!-- Brand Text -->
+    <div class="leading-tight">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.02em">
+        Tender Portal
+      </div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.08em">
+        Admin Panel
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Nav -->
+  <nav class="px-3 py-4 flex-1">
+
+    <!-- Dashboard -->
+    <a href="#" class="nav-item active">
+      <i class="bi bi-speedometer2"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <div class="nav-section-label">Operations</div>
+
+    <a href="../operations/operations.html" class="nav-item">
+      <i class="bi bi-inbox"></i>
+      <span>Tender Manager</span>
+      <span class="badge badge-gold ml-auto" x-text="stats.pending_tenders ?? '…'"></span>
+    </a>
+
+    <div class="nav-section-label">Tracker</div>
+
+    <a href="../audits/audits.html" class="nav-item">
+      <i class="bi bi-clipboard-check"></i>
+      <span>Audits Tracker</span>
+    </a>
+
+    <div class="nav-section-label">Administration</div>
+
+    <a href="../users/users.html" class="nav-item">
+      <i class="bi bi-people"></i>
+      <span>User Management</span>
+    </a>
+
+    <div class="nav-section-label">Support</div>
+
+    <a href="../support/support.html" class="nav-item">
+      <i class="bi bi-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+
+  </nav>
+
+  <!-- User -->
+  <div class="px-3 py-4 border-t" style="border-color:var(--border)">
+    <div class="nav-item" style="cursor:default">
+
+      <div 
+        class="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--gold)] to-[var(--gold2)] flex items-center justify-center text-[11px] font-bold text-[var(--navy)]"
+        x-text="getUserInitials()"
+      >
+        SA
+      </div>
+
+      <div class="min-w-0">
+        <div class="text-[12px] font-medium text-[var(--text)] truncate" x-text="userName">
+          System Admin
+        </div>
+        <div class="text-[10px] text-[var(--muted)]" x-text="userRole">
+          Super Admin
+        </div>
+      </div>
+
+      <a
+        href="#"
+        @click.prevent="logout()"
+        class="ml-auto text-[var(--muted)] text-[14px] hover:text-red-400 transition-colors"
+      >
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+
+    </div>
+  </div>
+
+</aside>
+
+    <!-- Mobile overlay -->
+    <div @click="sidebarOpen=false" x-show="sidebarOpen" class="fixed inset-0 z-40 lg:hidden" style="background:rgba(0,0,0,0.6)" x-cloak></div>
+
+    <!-- ── MAIN ── -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <header class="flex items-center justify-between px-5 py-3">
+        <div class="flex items-center gap-3">
+          <button @click="sidebarOpen=!sidebarOpen"
+                  class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg"
+                  style="background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-list" style="color:var(--text)"></i>
+          </button>
+          <div>
+            <h1 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.3px">Admin Accounts</h1>
+            <p style="font-size:11px;color:var(--muted)">South Africa Tender Intelligence Platform</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="status-pill">
+            <span class="status-dot"
+                  :style="apiStatus==='error' ? 'background:#E74C3C;box-shadow:0 0 6px #E74C3C;animation:none' : (apiStatus==='loading' ? 'background:var(--muted);animation:none' : '')"></span>
+            <span style="color:var(--muted)" x-text="apiStatusText">Connecting…</span>
+          </div>
+
+          <div x-show="lastUpdated" style="font-size:10px;color:var(--muted)" class="hidden sm:block" x-text="lastUpdated"></div>
+
+          <button style="display:none"  class="relative" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-bell" style="color:var(--muted);font-size:15px"></i>
+            <span x-show="pendingAccessRequests > 0"
+                  style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#E74C3C;border-radius:50%;font-size:9px;font-weight:700;font-family:'Syne',sans-serif;color:#fff;display:flex;align-items:center;justify-content:center"
+                  x-text="pendingAccessRequests"></span>
+          </button>
+
+          <button @click="fetchAdmins()"
+                  style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--slate);border:1px solid var(--border2)">
+            <i class="bi bi-arrow-clockwise" :class="apiStatus==='loading' ? 'spin' : ''" style="color:var(--muted);font-size:15px"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Body -->
+      <main class="flex-1 overflow-y-auto px-5 pb-8" style="background:transparent">
+
+        <!-- API Error banner -->
+        <div x-show="apiStatus==='error'" x-cloak
+             class="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
+             style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3)">
+          <div class="flex items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#E74C3C"></i>
+            <span style="font-size:13px;color:#E57373" x-text="apiError || 'Could not reach admins.php'"></span>
+          </div>
+          <button @click="fetchAdmins()"
+                  style="background:#C0392B;color:#fff;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:'Syne',sans-serif">Retry</button>
+        </div>
+
+        <!-- Page heading -->
+        <div class="flex items-start justify-between mb-6 pt-2">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);font-family:'Syne',sans-serif;margin-bottom:4px">Superuser View</div>
+            <div style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);letter-spacing:-0.5px">Admin User Management</div>
+            <p style="font-size:12px;color:var(--muted);margin-top:4px">Manage admin accounts, roles and access levels</p>
+          </div>
+          <button @click="openAddModal()" class="btn btn-primary">
+            <i class="bi bi-person-plus-fill"></i>
+            Add Admin
+          </button>
+        </div>
+
+        <!-- ── KPI Row ── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+          <div class="kpi-card">
+            <div class="kpi-label">Total Admins</div>
+            <div class="kpi-value" x-text="stats.total ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(255,255,255,0.03)">
+              <i class="bi bi-people" style="color:var(--muted)"></i>
+            </div>
+            <div class="kpi-sub"><i class="bi bi-person" style="color:var(--muted)"></i> All accounts</div>
+          </div>
+
+          <div class="kpi-card kpi-success">
+            <div class="kpi-label">Active</div>
+            <div class="kpi-value" x-text="stats.active ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(15,121,96,0.1)">
+              <i class="bi bi-check-circle" style="color:var(--emerald2)"></i>
+            </div>
+            <div class="kpi-sub"><i class="bi bi-check2" style="color:var(--emerald2)"></i> Can log in</div>
+          </div>
+
+          <div class="kpi-card kpi-alert">
+            <div class="kpi-label">Super Admins</div>
+            <div class="kpi-value" x-text="stats.super_admins ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(212,168,83,0.1)">
+              <i class="bi bi-shield-fill-check" style="color:var(--gold)"></i>
+            </div>
+            <div class="kpi-sub"><i class="bi bi-shield" style="color:var(--gold)"></i> Full access</div>
+          </div>
+
+          <div class="kpi-card" :class="(stats.inactive ?? 0) > 0 ? 'kpi-danger' : ''">
+            <div class="kpi-label">Inactive</div>
+            <div class="kpi-value" x-text="stats.inactive ?? '…'">—</div>
+            <div class="kpi-icon" style="background:rgba(192,57,43,0.08)">
+              <i class="bi bi-slash-circle" :style="(stats.inactive ?? 0) > 0 ? 'color:#E74C3C' : 'color:var(--muted)'"></i>
+            </div>
+            <div class="kpi-sub"><i class="bi bi-x-circle" style="color:var(--muted)"></i> Deactivated</div>
+          </div>
+        </div>
+
+        <!-- ── Main grid: table + activity feed ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          <!-- Table panel -->
+          <div class="lg:col-span-2" style="background:var(--slate);border:1px solid var(--border2);border-radius:16px">
+
+            <!-- Toolbar -->
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 border-b" style="border-color:var(--border2)">
+              <div class="flex items-center gap-1 flex-wrap">
+                <button @click="filterRole='all'"         :class="filterRole==='all'?'active':''"         class="filter-tab">All <span x-show="stats.total" x-text="'('+stats.total+')'"></span></button>
+                <button @click="filterRole='super_admin'" :class="filterRole==='super_admin'?'active':''" class="filter-tab">Super Admin</button>
+                <button @click="filterRole='admin'"       :class="filterRole==='admin'?'active':''"       class="filter-tab">Admin</button>
+                <button @click="filterRole='reviewer'"    :class="filterRole==='reviewer'?'active':''"    class="filter-tab">Reviewer</button>
+                <button @click="filterRole='viewer'"      :class="filterRole==='viewer'?'active':''"      class="filter-tab">Viewer</button>
+              </div>
+              <div class="search-wrap w-full sm:w-64">
+                <i class="bi bi-search"></i>
+                <input type="text" x-model="searchQ" placeholder="Search admins…"
+                       class="form-input" style="padding:8px 13px 8px 34px;font-size:12px">
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto">
+              <table class="user-table">
+                <thead>
+                  <tr>
+                    <th>Admin</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>2FA</th>
+                    <th>Added</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+
+                  <!-- Skeleton rows while loading -->
+                  <template x-if="apiStatus==='loading' && admins.length === 0">
+                    <template x-for="n in 5" :key="n">
+                      <tr>
+                        <td><div style="display:flex;align-items:center;gap:12px"><div class="sk" style="width:36px;height:36px;border-radius:9px;flex-shrink:0"></div><div><div class="sk" style="width:100px;height:11px;margin-bottom:5px"></div><div class="sk" style="width:140px;height:9px"></div></div></div></td>
+                        <td><div class="sk" style="width:70px;height:18px;border-radius:20px"></div></td>
+                        <td><div class="sk" style="width:55px;height:11px"></div></td>
+                        <td><div class="sk" style="width:60px;height:11px"></div></td>
+                        <td><div class="sk" style="width:32px;height:18px;border-radius:20px"></div></td>
+                        <td><div class="sk" style="width:60px;height:11px"></div></td>
+                        <td><div style="display:flex;gap:6px;justify-content:flex-end"><div class="sk" style="width:54px;height:28px;border-radius:7px"></div><div class="sk" style="width:28px;height:28px;border-radius:7px"></div><div class="sk" style="width:28px;height:28px;border-radius:7px"></div></div></td>
+                      </tr>
+                    </template>
+                  </template>
+
+                  <!-- Actual rows -->
+                  <template x-for="user in filteredAdmins" :key="user.id">
+                    <tr>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:12px">
+                          <div class="avatar" :style="`background:${avatarStyle(user.role).bg};color:${avatarStyle(user.role).color}`"
+                               x-text="initials(user.first_name, user.last_name)"></div>
+                          <div>
+                            <div style="font-weight:500;color:var(--text);font-size:13px" x-text="user.first_name + ' ' + user.last_name"></div>
+                            <div style="font-size:11px;color:var(--muted)" x-text="user.email"></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge"
+                              :class="roleBadge(user.role)"
+                              x-text="roleLabel(user.role)"></span>
+                      </td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:7px">
+                          <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0"
+                               :style="user.is_active ? 'background:var(--emerald2);box-shadow:0 0 5px var(--emerald2)' : 'background:var(--muted)'"></div>
+                          <span style="font-size:12px"
+                                :style="user.is_active ? 'color:var(--emerald2)' : 'color:var(--muted)'"
+                                x-text="user.is_active ? 'Active' : 'Inactive'"></span>
+                        </div>
+                      </td>
+                      <td style="color:var(--muted);font-size:12px" x-text="rel(user.last_login_at)"></td>
+                      <td>
+                        <span x-show=" user.two_fa_enabled" class="badge badge-green"><i class="bi bi-shield-check"></i> On</span>
+                        <span x-show="!user.two_fa_enabled" class="badge badge-muted">Off</span>
+                      </td>
+                      <td style="color:var(--muted);font-size:12px" x-text="fmtDate(user.created_at)"></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+                          <button @click="openEditModal(user)" class="btn btn-ghost btn-sm">
+                            <i class="bi bi-pencil"></i> Edit
+                          </button>
+                          <!-- Toggle active — guarded: hide if last super_admin -->
+                          <button @click="toggleActive(user)" class="btn btn-ghost btn-sm"
+                                  :title="user.is_active ? 'Deactivate' : 'Activate'"
+                                  x-show="canMutate(user)">
+                            <i class="bi" :class="user.is_active ? 'bi-slash-circle' : 'bi-check-circle'"></i>
+                          </button>
+                          <!-- Remove -->
+                          <button @click="confirmRemove(user)" class="btn btn-danger btn-sm"
+                                  title="Remove account"
+                                  x-show="canMutate(user)">
+                            <i class="bi bi-trash3"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+
+                  <!-- Empty state -->
+                  <tr x-show="filteredAdmins.length === 0 && apiStatus !== 'loading'">
+                    <td colspan="7" style="text-align:center;padding:48px 20px">
+                      <i class="bi bi-people" style="font-size:32px;color:var(--muted);display:block;margin-bottom:12px"></i>
+                      <div style="font-family:'Syne',sans-serif;font-weight:600;color:var(--muted);font-size:13px">No admins found</div>
+                      <div style="font-size:11px;color:rgba(138,155,181,0.6);margin-top:4px">Try adjusting your search or filter</div>
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between px-4 py-3 border-t" style="border-color:var(--border2)">
+              <span style="font-size:11px;color:var(--muted)"
+                    x-text="`Showing ${filteredAdmins.length} of ${admins.length} admins`"></span>
+              <span style="font-size:11px;color:var(--muted)" x-text="lastUpdated"></span>
+            </div>
+          </div>
+
+          <!-- ── Activity feed ── -->
+          <div class="panel">
+            <div class="panel-title">
+              <span class="dot-accent"></span>
+              Recent Admin Activity
+            </div>
+
+            <!-- Skeleton -->
+            <template x-if="apiStatus==='loading' && recentActivity.length === 0">
+              <div class="activity-feed ml-1">
+                <template x-for="n in 5" :key="n">
+                  <div class="activity-item">
+                    <div class="activity-dot sk" style="width:9px;height:9px;border:none"></div>
+                    <div class="sk" style="width:70%;height:11px;border-radius:4px;margin-bottom:6px"></div>
+                    <div class="sk" style="width:45%;height:9px;border-radius:4px"></div>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <div class="activity-feed ml-1" x-show="recentActivity.length > 0">
+              <template x-for="(a, i) in recentActivity" :key="i">
+                <div class="activity-item">
+                  <div class="activity-dot"
+                       :style="`background:${i===0?'var(--gold)':i===1?'var(--emerald2)':'var(--muted)'};border-color:var(--slate)`"></div>
+                  <p style="font-size:11px;font-weight:500;color:var(--text);line-height:1.4">
+                    <span x-text="a.action"></span>
+                    <span style="color:var(--muted);font-weight:400"> · <span x-text="a.entity_label ?? a.entity_type ?? ''"></span></span>
+                  </p>
+                  <p style="font-size:10px;color:var(--muted);margin-top:3px" x-text="(a.actor ?? 'System') + ' · ' + rel(a.time)"></p>
+                </div>
+              </template>
+            </div>
+
+            <p x-show="recentActivity.length === 0 && apiStatus !== 'loading'"
+               style="font-size:11px;color:var(--muted);padding-left:4px">No recent admin activity</p>
+
+            <!-- Extra stats -->
+            <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border2)">
+              <div class="panel-title" style="margin-bottom:14px"><span class="dot-accent"></span> At a Glance</div>
+              <div class="space-y-3">
+                <div style="display:flex;justify-content:space-between;font-size:12px">
+                  <span style="color:var(--muted)">Logged in today</span>
+                  <span class="badge badge-green" x-text="stats.logged_in_today ?? '—'">—</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px">
+                  <span style="color:var(--muted)">2FA enabled</span>
+                  <span class="badge badge-gold" x-text="stats.two_fa_on ?? '—'">—</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px">
+                  <span style="color:var(--muted)">Inactive accounts</span>
+                  <span class="badge" :class="(stats.inactive??0)>0?'badge-red':'badge-muted'" x-text="stats.inactive ?? '—'">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       ADD / EDIT MODAL
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <div x-show="showModal" x-cloak class="modal-overlay" @click.self="showModal=false">
+    <div class="modal">
+
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text)"
+                 x-text="editingUser ? 'Edit Admin Account' : 'Add New Admin'"></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px"
+                 x-text="editingUser ? 'Update details, role and access status' : 'Create a new admin account and assign a role'"></div>
+          </div>
+          <button @click="showModal=false"
+                  style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted)">
+            <i class="bi bi-x" style="font-size:16px"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Name -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label class="form-label">First Name</label>
+            <input type="text" x-model="form.first_name" class="form-input" placeholder="Jane"
+                   :class="formErrors.first_name ? 'border-red-500' : ''">
+            <div x-show="formErrors.first_name" style="font-size:11px;color:#E57373;margin-top:4px" x-text="formErrors.first_name"></div>
+          </div>
+          <div>
+            <label class="form-label">Last Name</label>
+            <input type="text" x-model="form.last_name" class="form-input" placeholder="Doe"
+                   :class="formErrors.last_name ? 'border-red-500' : ''">
+            <div x-show="formErrors.last_name" style="font-size:11px;color:#E57373;margin-top:4px" x-text="formErrors.last_name"></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" x-model="form.email" class="form-input" placeholder="jane@tenderportal.co.za"
+                 :class="formErrors.email ? 'border-red-500' : ''">
+          <div x-show="formErrors.email" style="font-size:11px;color:#E57373;margin-top:4px" x-text="formErrors.email"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Phone <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="tel" x-model="form.phone" class="form-input" placeholder="+27 11 000 0000">
+        </div>
+
+        <!-- Role -->
+        <div class="form-group">
+          <label class="form-label">Role &amp; Access Level</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+
+            <div class="role-card" :class="form.role==='super_admin'?'selected':''" @click="form.role='super_admin'">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                <i class="bi bi-shield-fill-check" style="color:var(--gold);font-size:13px"></i>
+                <span class="role-name">Super Admin</span>
+              </div>
+              <div class="role-desc">Full access — users, settings, all tenders</div>
+            </div>
+
+            <div class="role-card" :class="form.role==='admin'?'selected':''" @click="form.role='admin'">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                <i class="bi bi-person-badge" style="color:#93c5fd;font-size:13px"></i>
+                <span class="role-name">Admin</span>
+              </div>
+              <div class="role-desc">Review, approve and publish tenders</div>
+            </div>
+
+            <div class="role-card" :class="form.role==='reviewer'?'selected':''" @click="form.role='reviewer'">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                <i class="bi bi-eye" style="color:#c4b5fd;font-size:13px"></i>
+                <span class="role-name">Reviewer</span>
+              </div>
+              <div class="role-desc">View and annotate; cannot publish</div>
+            </div>
+
+            <div class="role-card" :class="form.role==='viewer'?'selected':''" @click="form.role='viewer'">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                <i class="bi bi-binoculars" style="color:var(--muted);font-size:13px"></i>
+                <span class="role-name">Viewer</span>
+              </div>
+              <div class="role-desc">Read-only access to admin panel</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label" x-text="editingUser ? 'New Password (leave blank to keep current)' : 'Temporary Password'"></label>
+          <div style="position:relative">
+            <input :type="showPw ? 'text' : 'password'" x-model="form.password" class="form-input"
+                   :placeholder="editingUser ? '••••••••••' : 'Min 10 characters'"
+                   style="padding-right:40px"
+                   :class="formErrors.password ? 'border-red-500' : ''">
+            <button type="button" @click="showPw=!showPw"
+                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)">
+              <i class="bi" :class="showPw ? 'bi-eye-slash' : 'bi-eye'"></i>
+            </button>
+          </div>
+          <div x-show="formErrors.password" style="font-size:11px;color:#E57373;margin-top:4px" x-text="formErrors.password"></div>
+          <div x-show="!editingUser" class="form-hint">User will be prompted to change on first login</div>
+        </div>
+
+        <!-- Active toggle (edit only) -->
+        <div x-show="editingUser" class="form-group">
+          <label class="form-label">Account Status</label>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:10px">
+            <div style="flex:1">
+              <div style="font-size:12px;font-weight:500;color:var(--text)"
+                   x-text="form.is_active ? 'Active — User can log in' : 'Inactive — Login blocked'"></div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Toggle to suspend or restore access</div>
+            </div>
+            <div class="toggle-track"
+                 :style="form.is_active ? 'background:var(--emerald2)' : 'background:var(--slate2)'"
+                 @click="form.is_active = !form.is_active">
+              <div class="toggle-thumb" :style="form.is_active ? 'left:21px' : 'left:3px'"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API error inside modal -->
+        <div x-show="modalError" x-cloak
+             style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.25);border-radius:9px;padding:10px 14px;display:flex;align-items:center;gap:8px">
+          <i class="bi bi-exclamation-triangle-fill" style="color:#E74C3C;font-size:13px;flex-shrink:0"></i>
+          <span style="font-size:12px;color:#E57373" x-text="modalError"></span>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button @click="showModal=false" class="btn btn-ghost">Cancel</button>
+        <button @click="saveUser()" class="btn btn-primary" :disabled="saving">
+          <span x-show="saving" class="spin"><i class="bi bi-arrow-clockwise"></i></span>
+          <span x-text="editingUser ? 'Save Changes' : 'Create Admin'"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       CONFIRM REMOVE MODAL
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <div x-show="showConfirm" x-cloak class="modal-overlay" @click.self="showConfirm=false">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-body" style="padding-top:28px">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px">
+          <i class="bi bi-person-x-fill" style="color:#E74C3C"></i>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">Remove Admin Account?</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6">
+          You are about to permanently remove
+          <strong style="color:var(--text)" x-text="pendingRemove ? pendingRemove.first_name+' '+pendingRemove.last_name : ''"></strong>
+          (<span style="color:var(--gold2)" x-text="pendingRemove?.email"></span>).
+          This cannot be undone. Their audit trail entries will be preserved.
+        </p>
+        <div style="margin-top:16px;padding:12px 14px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.18);border-radius:9px;font-size:11px;color:#E57373;display:flex;align-items:center;gap:8px">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          Any active sessions for this account will be immediately terminated.
+        </div>
+        <div x-show="modalError" x-cloak
+             style="margin-top:12px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.25);border-radius:9px;padding:10px 14px;font-size:12px;color:#E57373" x-text="modalError"></div>
+      </div>
+      <div class="modal-footer">
+        <button @click="showConfirm=false" class="btn btn-ghost">Cancel</button>
+        <button @click="removeUser()" class="btn btn-danger" :disabled="saving">
+          <span x-show="saving" class="spin"><i class="bi bi-arrow-clockwise"></i></span>
+          <span x-show="!saving"><i class="bi bi-trash3"></i> Remove Account</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="toast.show" x-cloak class="toast"
+       :style="toast.type==='success' ? 'border-left:3px solid var(--emerald2)' : toast.type==='error' ? 'border-left:3px solid #E74C3C' : 'border-left:3px solid var(--gold)'">
+    <i class="bi" :class="toast.icon"
+       :style="toast.type==='success' ? 'color:var(--emerald2)' : toast.type==='error' ? 'color:#E74C3C' : 'color:var(--gold2)'"></i>
+    <span x-text="toast.msg"></span>
+  </div>
+
+<script>
+  const API = 'users.php';
+
+  function adminsPage() {
+    return {
+      loading: true,
+      sidebarOpen: false,
+      apiStatus: 'loading',
+      apiStatusText: 'Connecting…',
+      apiError: '',
+      lastUpdated: '',
+      pendingAccessRequests: 0,
+      userName: 'System Admin',
+      userRole: 'Super Admin',
+
+      admins: [],
+      stats: {},
+      recentActivity: [],
+
+      filterRole: 'all',
+      searchQ: '',
+
+      showModal: false,
+      showConfirm: false,
+      editingUser: null,
+      pendingRemove: null,
+      saving: false,
+      showPw: false,
+      modalError: '',
+      formErrors: {},
+
+      form: {
+        first_name: '', last_name: '', email: '',
+        phone: '', role: 'admin', password: '', is_active: true,
+      },
+
+      toast: { show: false, msg: '', type: 'success', icon: 'bi-check-circle-fill' },
+
+      // ── Init ──────────────────────────────────────────────────────────────
+      init() {
+        this.loadUser();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.body.classList.remove('no-tr');
+          this.loading = false;
+        }));
+        this.fetchAdmins();
+        this.fetchPendingCount();
+      },
+
+      async fetchPendingCount() {
+        try {
+          const res = await fetch('../operations/operations.php?action=list&per_page=1', { cache: 'no-store' });
+          const j = await res.json();
+          if (j.success) this.stats = Object.assign({}, this.stats, { pending_tenders: j.counts?.Pending || 0 });
+        } catch {}
+      },
+
+      loadUser() {
+        try {
+          const d = JSON.parse(localStorage.getItem('user_data') || '{}');
+          this.userName = d.name      || 'System Admin';
+          this.userRole = d.role_name || 'Super Admin';
+        } catch {}
+      },
+
+      getUserInitials() {
+        return this.userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA';
+      },
+
+      // ── Fetch admins list from API ─────────────────────────────────────
+      async fetchAdmins() {
+        this.apiStatus = 'loading'; this.apiStatusText = 'Refreshing…';
+        try {
+          const res = await fetch(API, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'API error');
+
+          this.admins        = json.admins        || [];
+          this.stats         = json.stats         || {};
+          this.recentActivity= json.recent_activity || [];
+
+          this.apiStatus    = 'connected';
+          this.apiStatusText= 'Live';
+          this.apiError     = '';
+          this.lastUpdated  = 'Updated ' + this.rel(json.timestamp || new Date().toISOString());
+        } catch (e) {
+          this.apiStatus    = 'error';
+          this.apiStatusText= 'Offline';
+          this.apiError     = e.message;
+        }
+      },
+
+      // ── Computed: filtered + searched admins ──────────────────────────
+      get filteredAdmins() {
+        return this.admins.filter(u => {
+          const matchRole   = this.filterRole === 'all' || u.role === this.filterRole;
+          const q           = this.searchQ.toLowerCase().trim();
+          const matchSearch = !q ||
+            (u.first_name || '').toLowerCase().includes(q) ||
+            (u.last_name  || '').toLowerCase().includes(q) ||
+            (u.email      || '').toLowerCase().includes(q);
+          return matchRole && matchSearch;
+        });
+      },
+
+      // ── Guard: can we edit/remove this user? ──────────────────────────
+      canMutate(user) {
+        // Cannot remove/deactivate the last active super_admin
+        if (user.role === 'super_admin') {
+          const activeSuperCount = this.admins.filter(u => u.role === 'super_admin' && u.is_active).length;
+          if (activeSuperCount <= 1) return false;
+        }
+        return true;
+      },
+
+      // ── Modal helpers ─────────────────────────────────────────────────
+      openAddModal() {
+        this.editingUser = null;
+        this.formErrors  = {};
+        this.modalError  = '';
+        this.showPw      = false;
+        this.form = { first_name: '', last_name: '', email: '', phone: '', role: 'admin', password: '', is_active: true };
+        this.showModal = true;
+      },
+
+      openEditModal(user) {
+        this.editingUser = user;
+        this.formErrors  = {};
+        this.modalError  = '';
+        this.showPw      = false;
+        this.form = {
+          first_name: user.first_name,
+          last_name:  user.last_name,
+          email:      user.email,
+          phone:      user.phone || '',
+          role:       user.role,
+          password:   '',
+          is_active:  Boolean(parseInt(user.is_active)),
+        };
+        this.showModal = true;
+      },
+
+      // ── Client-side validation ────────────────────────────────────────
+      validate() {
+        this.formErrors = {};
+        if (!this.form.first_name.trim()) this.formErrors.first_name = 'Required';
+        if (!this.form.last_name.trim())  this.formErrors.last_name  = 'Required';
+        if (!this.form.email.trim() || !this.form.email.includes('@'))
+          this.formErrors.email = 'Valid email required';
+        if (!this.editingUser && this.form.password.length < 10)
+          this.formErrors.password = 'Minimum 10 characters';
+        if (this.editingUser && this.form.password && this.form.password.length < 10)
+          this.formErrors.password = 'Minimum 10 characters';
+        return Object.keys(this.formErrors).length === 0;
+      },
+
+      // ── Save (create or update) ───────────────────────────────────────
+      async saveUser() {
+        this.modalError = '';
+        if (!this.validate()) return;
+
+        this.saving = true;
+        try {
+          const method  = this.editingUser ? 'PUT' : 'POST';
+          const url     = this.editingUser ? `${API}?id=${this.editingUser.id}` : API;
+          const payload = { ...this.form };
+          if (this.editingUser && !payload.password) delete payload.password;
+
+          const res  = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'Save failed');
+
+          this.showModal = false;
+          this.showToast(
+            this.editingUser ? 'Account updated successfully' : 'Admin account created',
+            'success',
+            this.editingUser ? 'bi-check-circle-fill' : 'bi-person-check-fill'
+          );
+          await this.fetchAdmins();
+        } catch (e) {
+          this.modalError = e.message;
+        } finally {
+          this.saving = false;
+        }
+      },
+
+      // ── Confirm remove ────────────────────────────────────────────────
+      confirmRemove(user) {
+        this.pendingRemove = user;
+        this.modalError    = '';
+        this.showConfirm   = true;
+      },
+
+      async removeUser() {
+        if (!this.pendingRemove) return;
+        this.saving = true;
+        try {
+          const res  = await fetch(`${API}?id=${this.pendingRemove.id}`, {
+            method: 'DELETE',
+            headers: { Accept: 'application/json' },
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'Delete failed');
+
+          this.showToast(`${this.pendingRemove.first_name} ${this.pendingRemove.last_name} removed`, 'error', 'bi-person-dash-fill');
+          this.showConfirm   = false;
+          this.pendingRemove = null;
+          await this.fetchAdmins();
+        } catch (e) {
+          this.modalError = e.message;
+        } finally {
+          this.saving = false;
+        }
+      },
+
+      // ── Toggle active/inactive inline ─────────────────────────────────
+      async toggleActive(user) {
+        try {
+          const res  = await fetch(`${API}?id=${user.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              first_name: user.first_name,
+              last_name:  user.last_name,
+              email:      user.email,
+              phone:      user.phone || '',
+              role:       user.role,
+              is_active:  !parseInt(user.is_active),
+            }),
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error);
+
+          const newState = !parseInt(user.is_active);
+          this.showToast(
+            `${user.first_name} ${user.last_name} ${newState ? 'activated' : 'deactivated'}`,
+            'info',
+            newState ? 'bi-check-circle-fill' : 'bi-slash-circle-fill'
+          );
+          await this.fetchAdmins();
+        } catch (e) {
+          this.showToast(e.message, 'error', 'bi-exclamation-triangle-fill');
+        }
+      },
+
+      // ── Toast helper ──────────────────────────────────────────────────
+      showToast(msg, type = 'success', icon = 'bi-check-circle-fill') {
+        this.toast = { show: true, msg, type, icon };
+        setTimeout(() => this.toast.show = false, 3500);
+      },
+
+      // ── Display helpers ───────────────────────────────────────────────
+      rel(iso) {
+        if (!iso) return 'Never';
+        const m = Math.round((Date.now() - new Date(iso)) / 60000);
+        if (m < 1)  return 'Just now';
+        if (m < 60) return m + 'm ago';
+        const h = Math.round(m / 60);
+        if (h < 24) return h + 'h ago';
+        const d = Math.round(h / 24);
+        if (d < 30) return d + 'd ago';
+        return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' });
+      },
+
+      fmtDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+      },
+
+      initials(first, last) {
+        return ((first?.[0] || '') + (last?.[0] || '')).toUpperCase() || '?';
+      },
+
+      roleLabel(r) {
+        return { super_admin: 'Super Admin', admin: 'Admin', reviewer: 'Reviewer', viewer: 'Viewer' }[r] || r;
+      },
+
+      roleBadge(r) {
+        return { super_admin: 'badge-gold', admin: 'badge-blue', reviewer: 'badge-purple', viewer: 'badge-muted' }[r] || 'badge-muted';
+      },
+
+      avatarStyle(r) {
+        const map = {
+          super_admin: { bg: 'linear-gradient(135deg,#D4A853,#F0C97A)', color: '#0B1222' },
+          admin:       { bg: 'linear-gradient(135deg,#1d4ed8,#3b82f6)', color: '#fff' },
+          reviewer:    { bg: 'linear-gradient(135deg,#7e22ce,#a855f7)', color: '#fff' },
+          viewer:      { bg: 'linear-gradient(135deg,#1E2A3A,#243447)', color: '#8A9BB5' },
+        };
+        return map[r] || map.viewer;
+      },
+
+      logout() {
+        if (confirm('Sign out of the admin panel?')) {
+          localStorage.clear(); sessionStorage.clear();
+          window.location.href = 'https://ai.nationaltenders.co.za/';
+        }
+      },
+    };
+  }
+</script>
+</body>
+</html>
