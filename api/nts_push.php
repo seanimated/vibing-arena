@@ -27,6 +27,12 @@
  *     submission_address_two/city/postal_code and
  *     briefing_address_one/two/city/postal_code via COALESCE(pt.x, rt.x).
  *
+ *   buildTenderPayload() — tender_document_price always forwarded when present
+ *     Previously gated with !empty(), which also dropped genuine '0' values.
+ *     Now a returned value (including 0) is sent as tender_document_price;
+ *     only absent/NULL values are omitted. estimated_value is intentionally
+ *     NOT sent to NTS — left untouched.
+ *
  *   buildTenderPayload() — source name resolution
  *     Previously: $t['bot_source_name'] ?? $t['source_name'] ?? $settings default
  *     Now: explicit priority chain with URL-derived fallback so international
@@ -358,7 +364,9 @@ class NtsApi
                 'number' => $t['contact_phone'] ?? '',
             ];
         }
-        if (!empty($t['tender_document_price'])) {
+        if ($t['tender_document_price'] !== null && $t['tender_document_price'] !== '') {
+            // Forward the returned value as-is (0 = free / default). Only skip
+            // when truly absent - PHP empty() would also drop a genuine '0'.
             $tender['tender_document_price'] = (float) $t['tender_document_price'];
         }
         if (!empty($t['tender_image_url'])) {
