@@ -2,7 +2,26 @@
 /**
  * ============================================================================
  * SA Tender Portal — Bot Push API
- * File:    api/bot.php   |   Version 2.4 (structured submission/briefing addresses)
+ * File:    api/bot.php   |   Version 2.5 (n8n payload mapping)
+ *
+ * Changes vs 2.4:
+ *   - Field names emitted by the n8n scraper are now recognised directly:
+ *       tender_id            -> source_tender_id  (stable per-source dedupe key)
+ *       department           -> issuing_organisation
+ *       briefing_compulsory  -> compulsory_briefing (flat key; was nested-only)
+ *       region               -> province (fallback only, province still wins)
+ *   - Raw LLM envelopes are unwrapped when no "tenders" key is posted, so an
+ *     n8n HTTP Request node can forward the model output as-is:
+ *       response.generations[0][0].text  |  generations[0][0].text
+ *       output  |  choices[0].message.content  |  choices[0].text
+ *       text  |  content  |  data  |  result
+ *     The extracted text may be a JSON array, a single JSON object, or either
+ *     wrapped in ```json fences - all three are handled.
+ *   - A single tender object posted as "tenders" is wrapped into a batch
+ *     instead of being iterated field-by-field.
+ *   - The flat single-tender body path (no "tenders" key, has "title") is
+ *     unchanged.
+ *   - api_version bumped to 2.5-n8n-mapping.
  *
  * Changes vs 2.3:
  *   - Captures the full submission / briefing address blocks, not just the
@@ -177,6 +196,65 @@ function safe_json_encode($data): ?string {
     if (!is_array($data) || empty($data)) return null;
     $encoded = json_encode($data);
     return $encoded !== false ? $encoded : null;
+}
+
+/**
+ * Walk a nested path, e.g. dig($body, ['response','generations',0,0,'text']).
+ * Returns null as soon as a segment is missing.
+ */
+function dig(array $arr, array $path) {
+    $cur = $arr;
+    foreach ($path as $seg) {
+        if (!is_array($cur) || !array_key_exists($seg, $cur)) return null;
+        $cur = $cur[$seg];
+    }
+    return $cur;
+}
+
+/**
+ * Strip a whole-string markdown code fence (```json ... ```) if present.
+ */
+function strip_code_fences(string $s): string {
+    $s = trim($s);
+    if (preg_match('/^```[a-zA-Z]*\s*(.*?)\s*```$/s', $s, $m)) return trim($m[1]);
+    return $s;
+}
+
+/**
+ * Pull the model's JSON out of the common n8n / LLM response envelopes.
+ *
+ * The n8n AI Agent node returns the tender JSON as a STRING nested inside
+ * response.generations[0][0].text. When an HTTP Request node forwards that
+ * envelope verbatim there is no "tenders" key, so unwrap it here.
+ *
+ * @return string|array|null JSON text (or an already-decoded array), else null
+ */
+function extract_llm_payload(array $body) {
+    $paths = [
+        ['response', 'generations', 0, 0, 'text'],
+        ['generations', 0, 0, 'text'],
+        ['response', 'generations', 0, 'text'],
+        ['choices', 0, 'message', 'content'],
+        ['choices', 0, 'text'],
+        ['output'],
+        ['text'],
+        ['content'],
+        ['data'],
+        ['result'],
+    ];
+    foreach ($paths as $path) {
+        $v = dig($body, $path);
+        if (is_string($v) && trim($v) !== '') return $v;
+        if (is_array($v) && !empty($v))       return $v;
+    }
+    return null;
+}
+
+/**
+ * True when the array is a plain 0..n list (a batch) rather than one object.
+ */
+function is_list_array(array $a): bool {
+    return $a === [] || array_keys($a) === range(0, count($a) - 1);
 }
 
 function parse_date($raw): ?string {
@@ -429,7 +507,7 @@ function handle_ping(PDO $db, string $botLabel): never {
         'bot_label'       => $botLabel,
         'server_time'     => date('c'),
         'scraper_enabled' => ($setting === 'true'),
-        'api_version'     => '2.4-addresses',
+        'api_version'     => '2.5-n8n-mapping',
         'php_version'     => PHP_VERSION,
     ], 'Pong');
 }
@@ -539,13 +617,24 @@ function handle_push_tender(PDO $db, string $botLabel): never {
     global $body;
     $tendersRaw = $_POST['tenders'] ?? $body['tenders'] ?? null;
 
+    // ── LLM / n8n ENVELOPE FALLBACK ─────────────────────────────────────────
+    // Only used when no "tenders" key was posted AND the body is not itself a
+    // flat single tender (which always carries a title).
+    if ($tendersRaw === null && empty($body['title']) && empty($_POST['title'])) {
+        $tendersRaw = extract_llm_payload($body);
+    }
+    // ── END LLM / n8n ENVELOPE FALLBACK ─────────────────────────────────────
+
     if ($tendersRaw !== null) {
         if (is_string($tendersRaw)) {
+            $tendersRaw = strip_code_fences($tendersRaw);
             $tenders = json_decode($tendersRaw, true);
             if (!is_array($tenders)) fail(400, "'tenders' must be a valid JSON array.");
         } else {
             $tenders = $tendersRaw;
         }
+        // A single tender object rather than a batch -> wrap it.
+        if (!empty($tenders) && !is_list_array($tenders)) $tenders = [$tenders];
     } else {
         $tenders = [array_merge($_POST, $body)];
     }
@@ -628,7 +717,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             }
             // ── END BOT SOURCE NAME ───────────────────────────────────────────
 
-            $sourceTenderId = sanitize(safe_get($t, ['source_tender_id', 'number', 'id']), 255);
+            // n8n sends "tender_id"; kept as the stable per-source dedupe key.
+            $sourceTenderId = sanitize(safe_get($t, ['source_tender_id', 'tender_id', 'tenderId', 'number', 'id']), 255);
             $description    = sanitize(safe_get($t, 'description'), 65535);
             $hash           = compute_hash($title, $description);
 
@@ -661,7 +751,9 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             if (!is_array($briefingObj)) $briefingObj = [];
             $briefingDate  = parse_date(safe_get($t, ['briefing_date', 'briefingDate']) ?: safe_get($briefingObj, 'date'));
             $briefingVenue = sanitize(safe_get($t, ['briefing_venue', 'briefingVenue']) ?: safe_get($briefingObj, 'venue'), 500) ?: null;
-            $compulsoryRaw = safe_get($t, ['compulsory_briefing', 'compulsoryBriefing', 'isCompulsory']);
+            // n8n sends the flat key "briefing_compulsory" (null-safe: safe_get
+            // skips null values, so a null here falls through to the defaults).
+            $compulsoryRaw = safe_get($t, ['compulsory_briefing', 'compulsoryBriefing', 'briefing_compulsory', 'briefingCompulsory', 'isCompulsory']);
             if (is_array($compulsoryRaw)) $compulsoryRaw = safe_get($compulsoryRaw, 'is_compulsory');
             $compulsory = !empty($compulsoryRaw) ? 1 : 0;
             if (!$compulsory && isset($briefingObj['briefing_compulsory'])) $compulsory = $briefingObj['briefing_compulsory'] ? 1 : 0;
@@ -753,7 +845,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                 )));
                 if (!empty($sf)) $statesJson = json_encode($sf);
             }
-            $province = sanitize(safe_get($t, 'province'), 100);
+            // n8n sends both province and region; region is only a fallback.
+            $province = sanitize(safe_get($t, ['province', 'region']), 100);
             if (empty($province) && $statesJson) {
                 $sd = json_decode($statesJson, true);
                 if (!empty($sd[0])) $province = sanitize($sd[0], 100);
@@ -773,7 +866,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             }
 
             // Misc string fields
-            $issuingOrg = sanitize(safe_get($t, ['issuing_organisation', 'issuingOrganisation', 'tender_client', 'client', 'organization']), 500) ?: null;
+            // n8n sends "department" (e.g. "Lepelle-Nkumpi Local Municipality").
+            $issuingOrg = sanitize(safe_get($t, ['issuing_organisation', 'issuingOrganisation', 'department', 'organisation', 'tender_client', 'client', 'organization']), 500) ?: null;
             $refNumber  = sanitize(safe_get($t, ['reference_number', 'referenceNumber', 'number', 'tenderNumber']), 255) ?: null;
             $tenderType = sanitize(safe_get($t, ['tender_type', 'tenderType', 'type']), 100) ?: null;
             if ($tenderType === 'RFQ') $tenderType = 'Request For Quote';
