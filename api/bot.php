@@ -2,7 +2,45 @@
 /**
  * ============================================================================
  * SA Tender Portal — Bot Push API
- * File:    api/bot.php   |   Version 2.3 (auto source derivation)
+ * File:    api/bot.php   |   Version 2.5 (n8n payload mapping)
+ *
+ * Changes vs 2.4:
+ *   - Field names emitted by the n8n scraper are now recognised directly:
+ *       tender_id            -> source_tender_id  (stable per-source dedupe key)
+ *       department           -> issuing_organisation
+ *       briefing_compulsory  -> compulsory_briefing (flat key; was nested-only)
+ *       region               -> province (fallback only, province still wins)
+ *   - Raw LLM envelopes are unwrapped when no "tenders" key is posted, so an
+ *     n8n HTTP Request node can forward the model output as-is:
+ *       response.generations[0][0].text  |  generations[0][0].text
+ *       output  |  choices[0].message.content  |  choices[0].text
+ *       text  |  content  |  data  |  result
+ *     The extracted text may be a JSON array, a single JSON object, or either
+ *     wrapped in ```json fences - all three are handled.
+ *   - A single tender object posted as "tenders" is wrapped into a batch
+ *     instead of being iterated field-by-field.
+ *   - The flat single-tender body path (no "tenders" key, has "title") is
+ *     unchanged.
+ *   - api_version bumped to 2.5-n8n-mapping.
+ *
+ * Changes vs 2.3:
+ *   - Captures the full submission / briefing address blocks, not just the
+ *     one-line address. New stored columns (raw_tenders):
+ *       submission_address_two, submission_address_city,
+ *       submission_address_postal_code,
+ *       briefing_address_one, briefing_address_two,
+ *       briefing_address_city, briefing_address_postal_code
+ *     (submission_address remains "Submission Address One"; briefing_address_one
+ *      falls back to the legacy briefing_venue value.)
+ *   - Each field is read from a flat top-level key OR the nested
+ *     submission/submission_details and briefing/briefing_data objects, so both
+ *     payload styles work:
+ *       flat:  submission_address_two / submissionAddressTwo / …
+ *       nested: submission.address_two / submission.city / submission.postal_code
+ *               briefing.address_one / briefing.address_city / …
+ *   - tender_document_price now defaults to 0 when the bot provides no value
+ *     (previously stored NULL).
+ *   - api_version bumped to 2.4-addresses.
  *
  * Changes vs 2.2:
  *   - derive_source_name() now covers international portals (UNDP, UNGM,
@@ -158,6 +196,65 @@ function safe_json_encode($data): ?string {
     if (!is_array($data) || empty($data)) return null;
     $encoded = json_encode($data);
     return $encoded !== false ? $encoded : null;
+}
+
+/**
+ * Walk a nested path, e.g. dig($body, ['response','generations',0,0,'text']).
+ * Returns null as soon as a segment is missing.
+ */
+function dig(array $arr, array $path) {
+    $cur = $arr;
+    foreach ($path as $seg) {
+        if (!is_array($cur) || !array_key_exists($seg, $cur)) return null;
+        $cur = $cur[$seg];
+    }
+    return $cur;
+}
+
+/**
+ * Strip a whole-string markdown code fence (```json ... ```) if present.
+ */
+function strip_code_fences(string $s): string {
+    $s = trim($s);
+    if (preg_match('/^```[a-zA-Z]*\s*(.*?)\s*```$/s', $s, $m)) return trim($m[1]);
+    return $s;
+}
+
+/**
+ * Pull the model's JSON out of the common n8n / LLM response envelopes.
+ *
+ * The n8n AI Agent node returns the tender JSON as a STRING nested inside
+ * response.generations[0][0].text. When an HTTP Request node forwards that
+ * envelope verbatim there is no "tenders" key, so unwrap it here.
+ *
+ * @return string|array|null JSON text (or an already-decoded array), else null
+ */
+function extract_llm_payload(array $body) {
+    $paths = [
+        ['response', 'generations', 0, 0, 'text'],
+        ['generations', 0, 0, 'text'],
+        ['response', 'generations', 0, 'text'],
+        ['choices', 0, 'message', 'content'],
+        ['choices', 0, 'text'],
+        ['output'],
+        ['text'],
+        ['content'],
+        ['data'],
+        ['result'],
+    ];
+    foreach ($paths as $path) {
+        $v = dig($body, $path);
+        if (is_string($v) && trim($v) !== '') return $v;
+        if (is_array($v) && !empty($v))       return $v;
+    }
+    return null;
+}
+
+/**
+ * True when the array is a plain 0..n list (a batch) rather than one object.
+ */
+function is_list_array(array $a): bool {
+    return $a === [] || array_keys($a) === range(0, count($a) - 1);
 }
 
 function parse_date($raw): ?string {
@@ -410,7 +507,7 @@ function handle_ping(PDO $db, string $botLabel): never {
         'bot_label'       => $botLabel,
         'server_time'     => date('c'),
         'scraper_enabled' => ($setting === 'true'),
-        'api_version'     => '2.3-auto-source',
+        'api_version'     => '2.5-n8n-mapping',
         'php_version'     => PHP_VERSION,
     ], 'Pong');
 }
@@ -520,13 +617,24 @@ function handle_push_tender(PDO $db, string $botLabel): never {
     global $body;
     $tendersRaw = $_POST['tenders'] ?? $body['tenders'] ?? null;
 
+    // ── LLM / n8n ENVELOPE FALLBACK ─────────────────────────────────────────
+    // Only used when no "tenders" key was posted AND the body is not itself a
+    // flat single tender (which always carries a title).
+    if ($tendersRaw === null && empty($body['title']) && empty($_POST['title'])) {
+        $tendersRaw = extract_llm_payload($body);
+    }
+    // ── END LLM / n8n ENVELOPE FALLBACK ─────────────────────────────────────
+
     if ($tendersRaw !== null) {
         if (is_string($tendersRaw)) {
+            $tendersRaw = strip_code_fences($tendersRaw);
             $tenders = json_decode($tendersRaw, true);
             if (!is_array($tenders)) fail(400, "'tenders' must be a valid JSON array.");
         } else {
             $tenders = $tendersRaw;
         }
+        // A single tender object rather than a batch -> wrap it.
+        if (!empty($tenders) && !is_list_array($tenders)) $tenders = [$tenders];
     } else {
         $tenders = [array_merge($_POST, $body)];
     }
@@ -547,8 +655,12 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             tender_type, fields_of_expertise, estimated_value, currency,
             closing_date, closing_time, published_date,
             compulsory_briefing, briefing_date, briefing_venue, briefing_json,
+            briefing_address_one, briefing_address_two,
+            briefing_address_city, briefing_address_postal_code,
             contact_name, contact_email, contact_phone, enquiries_email,
             submission_address, submission_json,
+            submission_address_two, submission_address_city,
+            submission_address_postal_code,
             cidb_grade, bbbee_requirement, local_content_pct,
             tender_document_url, tender_document_price, tender_image_url,
             raw_html_snippet, admin_status, scraped_at
@@ -559,8 +671,12 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             :tender_type, :fields_of_expertise, :estimated_value, :currency,
             :closing_date, :closing_time, :published_date,
             :compulsory_briefing, :briefing_date, :briefing_venue, :briefing_json,
+            :briefing_address_one, :briefing_address_two,
+            :briefing_address_city, :briefing_address_postal_code,
             :contact_name, :contact_email, :contact_phone, :enquiries_email,
             :submission_address, :submission_json,
+            :submission_address_two, :submission_address_city,
+            :submission_address_postal_code,
             :cidb_grade, :bbbee_requirement, :local_content_pct,
             :tender_document_url, :tender_document_price, :tender_image_url,
             :raw_html_snippet, 'Pending', NOW()
@@ -601,7 +717,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             }
             // ── END BOT SOURCE NAME ───────────────────────────────────────────
 
-            $sourceTenderId = sanitize(safe_get($t, ['source_tender_id', 'number', 'id']), 255);
+            // n8n sends "tender_id"; kept as the stable per-source dedupe key.
+            $sourceTenderId = sanitize(safe_get($t, ['source_tender_id', 'tender_id', 'tenderId', 'number', 'id']), 255);
             $description    = sanitize(safe_get($t, 'description'), 65535);
             $hash           = compute_hash($title, $description);
 
@@ -634,11 +751,37 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             if (!is_array($briefingObj)) $briefingObj = [];
             $briefingDate  = parse_date(safe_get($t, ['briefing_date', 'briefingDate']) ?: safe_get($briefingObj, 'date'));
             $briefingVenue = sanitize(safe_get($t, ['briefing_venue', 'briefingVenue']) ?: safe_get($briefingObj, 'venue'), 500) ?: null;
-            $compulsoryRaw = safe_get($t, ['compulsory_briefing', 'compulsoryBriefing', 'isCompulsory']);
+            // n8n sends the flat key "briefing_compulsory" (null-safe: safe_get
+            // skips null values, so a null here falls through to the defaults).
+            $compulsoryRaw = safe_get($t, ['compulsory_briefing', 'compulsoryBriefing', 'briefing_compulsory', 'briefingCompulsory', 'isCompulsory']);
             if (is_array($compulsoryRaw)) $compulsoryRaw = safe_get($compulsoryRaw, 'is_compulsory');
             $compulsory = !empty($compulsoryRaw) ? 1 : 0;
             if (!$compulsory && isset($briefingObj['briefing_compulsory'])) $compulsory = $briefingObj['briefing_compulsory'] ? 1 : 0;
             if (!$compulsory && isset($briefingObj['is_compulsory']))       $compulsory = $briefingObj['is_compulsory'] ? 1 : 0;
+
+            // Briefing structured address (flat fields or nested briefing object)
+            // Briefing Address One falls back to the legacy briefing_venue value.
+            $briefingAddrOne = sanitize(
+                safe_get($t, ['briefing_address_one', 'briefingAddressOne', 'briefing_address_1'])
+                    ?: safe_get($briefingObj, ['address_one', 'address', 'address1', 'address_line_one', 'venue']),
+                500
+            ) ?: null;
+            if (empty($briefingAddrOne)) $briefingAddrOne = $briefingVenue;
+            $briefingAddrTwo = sanitize(
+                safe_get($t, ['briefing_address_two', 'briefingAddressTwo', 'briefing_address_2'])
+                    ?: safe_get($briefingObj, ['address_two', 'address2', 'address_line_two']),
+                500
+            ) ?: null;
+            $briefingAddrCity = sanitize(
+                safe_get($t, ['briefing_address_city', 'briefingAddressCity', 'briefing_city', 'briefingCity'])
+                    ?: safe_get($briefingObj, ['address_city', 'city']),
+                255
+            ) ?: null;
+            $briefingAddrPostal = sanitize(
+                safe_get($t, ['briefing_address_postal_code', 'briefingAddressPostalCode', 'briefing_postal_code', 'briefing_postalcode', 'briefingPostalCode'])
+                    ?: safe_get($briefingObj, ['address_postal_code', 'postal_code', 'postalcode', 'zip', 'zip_code']),
+                20
+            ) ?: null;
 
             // Numeric fields
             $estValue = null;
@@ -652,7 +795,7 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             $localPct = null;
             $localRaw = safe_get($t, ['local_content_pct', 'localContentPct', 'local_content']);
             if (is_numeric($localRaw)) $localPct = round((float)$localRaw, 2);
-            $docPrice = null;
+            $docPrice = 0; // 0 by default unless the scraper returns a value
             $priceRaw = safe_get($t, ['tender_document_price', 'tenderDocumentPrice', 'document_price', 'fee']);
             if (is_numeric($priceRaw)) $docPrice = round((float)$priceRaw, 2);
 
@@ -702,7 +845,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                 )));
                 if (!empty($sf)) $statesJson = json_encode($sf);
             }
-            $province = sanitize(safe_get($t, 'province'), 100);
+            // n8n sends both province and region; region is only a fallback.
+            $province = sanitize(safe_get($t, ['province', 'region']), 100);
             if (empty($province) && $statesJson) {
                 $sd = json_decode($statesJson, true);
                 if (!empty($sd[0])) $province = sanitize($sd[0], 100);
@@ -722,7 +866,8 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             }
 
             // Misc string fields
-            $issuingOrg = sanitize(safe_get($t, ['issuing_organisation', 'issuingOrganisation', 'tender_client', 'client', 'organization']), 500) ?: null;
+            // n8n sends "department" (e.g. "Lepelle-Nkumpi Local Municipality").
+            $issuingOrg = sanitize(safe_get($t, ['issuing_organisation', 'issuingOrganisation', 'department', 'organisation', 'tender_client', 'client', 'organization']), 500) ?: null;
             $refNumber  = sanitize(safe_get($t, ['reference_number', 'referenceNumber', 'number', 'tenderNumber']), 255) ?: null;
             $tenderType = sanitize(safe_get($t, ['tender_type', 'tenderType', 'type']), 100) ?: null;
             if ($tenderType === 'RFQ') $tenderType = 'Request For Quote';
@@ -737,6 +882,22 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                 safe_get($t, ['submission_address', 'submissionAddress', 'address'])
                     ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address', 'address_one']) : null),
                 500
+            ) ?: null;
+            // Submission Address Two / City / Postal Code (flat fields or nested object)
+            $submissionAddrTwo = sanitize(
+                safe_get($t, ['submission_address_two', 'submissionAddressTwo', 'submission_address_2', 'submission_address2'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_two', 'address2', 'address_line_two']) : null),
+                500
+            ) ?: null;
+            $submissionAddrCity = sanitize(
+                safe_get($t, ['submission_address_city', 'submissionAddressCity', 'submission_city', 'submissionCity'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_city', 'city']) : null),
+                255
+            ) ?: null;
+            $submissionAddrPostal = sanitize(
+                safe_get($t, ['submission_address_postal_code', 'submissionAddressPostalCode', 'submission_postal_code', 'submission_postalcode', 'submissionPostalCode'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_postal_code', 'postal_code', 'postalcode', 'zip', 'zip_code']) : null),
+                20
             ) ?: null;
             $briefingJson   = !empty($briefingObj) ? safe_json_encode($briefingObj) : null;
 
@@ -774,12 +935,19 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                 ':briefing_date'         => $briefingDate,
                 ':briefing_venue'        => $briefingVenue,
                 ':briefing_json'         => $briefingJson,
+                ':briefing_address_one'  => $briefingAddrOne,
+                ':briefing_address_two'  => $briefingAddrTwo,
+                ':briefing_address_city' => $briefingAddrCity,
+                ':briefing_address_postal_code' => $briefingAddrPostal,
                 ':contact_name'          => $contactName,
                 ':contact_email'         => $contactEmail,
                 ':contact_phone'         => $contactPhone,
                 ':enquiries_email'       => $enquiriesEmail,
                 ':submission_address'    => $submissionAddr,
                 ':submission_json'       => $submissionJson,
+                ':submission_address_two' => $submissionAddrTwo,
+                ':submission_address_city' => $submissionAddrCity,
+                ':submission_address_postal_code' => $submissionAddrPostal,
                 ':cidb_grade'            => $cidbGrade,
                 ':bbbee_requirement'     => $bbbeeReq,
                 ':local_content_pct'     => $localPct,
