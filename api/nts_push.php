@@ -6,6 +6,27 @@
  *
  * Changes vs previous version:
  *
+ *   buildSubmission() / buildBriefing() — structured address merge (NEW)
+ *     Previously: submission_json / briefing_json were forwarded to NTS as-is
+ *     (only address_countries was added), so the new structured address columns
+ *     were silently ignored whenever a JSON blob existed — and when one didn't,
+ *     only address_one was ever sent.
+ *     Now: the decoded JSON blob is overlaid with the non-empty column values
+ *       submission:        address_one (submission_address),
+ *                          address_two, address_city, address_postal_code
+ *       briefing:          address_one (briefing_address_one ?? briefing_venue),
+ *                          address_two, address_city, address_postal_code,
+ *                          plus briefing_date / briefing_compulsory from columns
+ *     Column values win over scraped JSON so admin corrections in the
+ *     operations UI take effect on the next push.
+ *     buildBriefing() no longer requires briefing_date — a briefing block with
+ *     only address fields is now sent (NTS may still reject it per-tender,
+ *     which is visible in nts_push_results).
+ *
+ *   fetchPublishedTenders() — reads the new address columns
+ *     submission_address_two/city/postal_code and
+ *     briefing_address_one/two/city/postal_code via COALESCE(pt.x, rt.x).
+ *
  *   buildTenderPayload() — source name resolution
  *     Previously: $t['bot_source_name'] ?? $t['source_name'] ?? $settings default
  *     Now: explicit priority chain with URL-derived fallback so international
@@ -387,44 +408,83 @@ class NtsApi
 
     private static function buildSubmission(array $t, string $country, array $states): ?array
     {
+        $sub = [];
         if (!empty($t['submission_json'])) {
-            $sub = json_decode($t['submission_json'], true);
-            if (is_array($sub)) {
-                if (empty($sub['address_countries'])) {
-                    $sub['address_countries'] = self::buildCountries($country, $states);
-                }
-                return $sub;
-            }
+            $decoded = json_decode($t['submission_json'], true);
+            if (is_array($decoded)) $sub = $decoded;
         }
-        if (empty($t['submission_address'])) return null;
-        return [
-            'address_one'       => $t['submission_address'],
-            'address_countries' => self::buildCountries($country, $states),
+
+        // Structured address columns overlay the scraped JSON blob — values
+        // captured by bot.php v2.4+ (or corrected in the operations UI) take
+        // priority; JSON keys without a column counterpart are kept as-is.
+        $addrMap = [
+            'address_one'         => $t['submission_address']              ?? null,
+            'address_two'         => $t['submission_address_two']          ?? null,
+            'address_city'        => $t['submission_address_city']         ?? null,
+            'address_postal_code' => $t['submission_address_postal_code']  ?? null,
         ];
+        foreach ($addrMap as $key => $val) {
+            if ($val !== null && trim((string)$val) !== '') $sub[$key] = $val;
+        }
+
+        if (!self::hasAddressContent($sub)) return null;
+
+        if (empty($sub['address_countries'])) {
+            $sub['address_countries'] = self::buildCountries($country, $states);
+        }
+        return $sub;
     }
 
     private static function buildBriefing(array $t, string $country, array $states): ?array
     {
+        $br = [];
         if (!empty($t['briefing_json'])) {
-            $br = json_decode($t['briefing_json'], true);
-            if (is_array($br)) {
-                if (empty($br['address_countries'])) {
-                    $br['address_countries'] = self::buildCountries($country, $states);
-                }
-                return $br;
-            }
+            $decoded = json_decode($t['briefing_json'], true);
+            if (is_array($decoded)) $br = $decoded;
         }
-        if (empty($t['briefing_date'])) return null;
 
-        $briefing = [
-            'briefing_date'       => self::toIso8601($t['briefing_date']),
-            'briefing_compulsory' => (bool) ($t['compulsory_briefing'] ?? false),
-            'address_countries'   => self::buildCountries($country, $states),
-        ];
-        if (!empty($t['briefing_venue'])) {
-            $briefing['address_one'] = $t['briefing_venue'];
+        if (!empty($t['briefing_date'])) {
+            $br['briefing_date'] = self::toIso8601($t['briefing_date']);
         }
-        return $briefing;
+        if (isset($t['compulsory_briefing']) && $t['compulsory_briefing'] !== null && $t['compulsory_briefing'] !== '') {
+            $br['briefing_compulsory'] = (bool) $t['compulsory_briefing'];
+        }
+
+        // Briefing Address One falls back to the legacy briefing_venue value.
+        $addrMap = [
+            'address_one'         => $t['briefing_address_one']         ?? null,
+            'address_two'         => $t['briefing_address_two']         ?? null,
+            'address_city'        => $t['briefing_address_city']        ?? null,
+            'address_postal_code' => $t['briefing_address_postal_code'] ?? null,
+        ];
+        if (empty(trim((string)($addrMap['address_one'] ?? '')))) {
+            $addrMap['address_one'] = $t['briefing_venue'] ?? null;
+        }
+        foreach ($addrMap as $key => $val) {
+            if ($val !== null && trim((string)$val) !== '') $br[$key] = $val;
+        }
+
+        if (!self::hasAddressContent($br)) return null;
+
+        if (empty($br['address_countries'])) {
+            $br['address_countries'] = self::buildCountries($country, $states);
+        }
+        return $br;
+    }
+
+    /**
+     * True when a submission/briefing object carries any meaningful content
+     * beyond the address_countries wrapper (and the briefing_compulsory flag,
+     * which on its own says nothing about where/when a briefing happens).
+     */
+    private static function hasAddressContent(array $obj): bool
+    {
+        foreach ($obj as $key => $val) {
+            if ($key === 'address_countries' || $key === 'briefing_compulsory') continue;
+            if (is_array($val)) { if (!empty($val)) return true; continue; }
+            if (trim((string)$val) !== '') return true;
+        }
+        return false;
     }
 
     // ── DB helpers ────────────────────────────────────────────────────────────
@@ -516,9 +576,16 @@ class NtsApi
                 rt.tender_document_price,
                 COALESCE(pt.tender_image_url,   rt.tender_image_url)   AS tender_image_url,
                 COALESCE(pt.submission_address, rt.submission_address) AS submission_address,
+                COALESCE(pt.submission_address_two,         rt.submission_address_two)         AS submission_address_two,
+                COALESCE(pt.submission_address_city,        rt.submission_address_city)        AS submission_address_city,
+                COALESCE(pt.submission_address_postal_code, rt.submission_address_postal_code) AS submission_address_postal_code,
                 COALESCE(pt.submission_json,    rt.submission_json)    AS submission_json,
                 rt.briefing_date,
                 rt.briefing_venue,
+                COALESCE(pt.briefing_address_one,         rt.briefing_address_one)         AS briefing_address_one,
+                COALESCE(pt.briefing_address_two,         rt.briefing_address_two)         AS briefing_address_two,
+                COALESCE(pt.briefing_address_city,        rt.briefing_address_city)        AS briefing_address_city,
+                COALESCE(pt.briefing_address_postal_code, rt.briefing_address_postal_code) AS briefing_address_postal_code,
                 COALESCE(pt.briefing_json,      rt.briefing_json)      AS briefing_json,
                 rt.compulsory_briefing,
                 rt.cidb_grade,

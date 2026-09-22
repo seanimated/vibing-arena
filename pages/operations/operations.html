@@ -491,6 +491,35 @@
           <div><label class="form-label">Contact Email</label><input x-model="editForm.contact_email" type="email" class="field w-full"></div>
           <div><label class="form-label">Contact Phone</label><input x-model="editForm.contact_phone" type="text" class="field w-full"></div>
         </div>
+        <!-- Submission Address block -->
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Submission Address One</label><input x-model="editForm.submission_address" type="text" class="field w-full"></div>
+          <div><label class="form-label">Submission Address Two</label><input x-model="editForm.submission_address_two" type="text" class="field w-full"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Submission Address City</label><input x-model="editForm.submission_address_city" type="text" class="field w-full"></div>
+          <div><label class="form-label">Submission Address Postal Code</label><input x-model="editForm.submission_address_postal_code" type="text" class="field w-full"></div>
+        </div>
+        <!-- Briefing block -->
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Briefing Date</label><input x-model="editForm.briefing_date" type="date" class="field w-full"></div>
+          <div>
+            <label class="form-label">Compulsory Briefing</label>
+            <label class="flex items-center gap-2" style="height:34px">
+              <input type="checkbox" :checked="!!+editForm.compulsory_briefing"
+                     @change="editForm.compulsory_briefing=$event.target.checked?1:0">
+              <span style="font-size:11px;color:var(--muted)">Attendance is compulsory</span>
+            </label>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Briefing Address One</label><input x-model="editForm.briefing_address_one" type="text" class="field w-full"></div>
+          <div><label class="form-label">Briefing Address Two</label><input x-model="editForm.briefing_address_two" type="text" class="field w-full"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Briefing Address City</label><input x-model="editForm.briefing_address_city" type="text" class="field w-full"></div>
+          <div><label class="form-label">Briefing Address Postal Code</label><input x-model="editForm.briefing_address_postal_code" type="text" class="field w-full"></div>
+        </div>
         <div><label class="form-label">Admin Notes</label><textarea x-model="editForm.admin_notes" class="field w-full" style="min-height:60px" placeholder="Internal notes…"></textarea></div>
         <div>
           <label class="form-label">Assign To</label>

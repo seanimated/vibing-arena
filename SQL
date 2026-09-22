@@ -230,11 +230,18 @@ CREATE TABLE IF NOT EXISTS raw_tenders (
     compulsory_briefing     BOOLEAN      DEFAULT FALSE,
     briefing_date           DATE         DEFAULT NULL,
     briefing_venue          TEXT         DEFAULT NULL,
+    briefing_address_one    VARCHAR(500) DEFAULT NULL,          -- Briefing Address One (falls back to briefing_venue)
+    briefing_address_two    VARCHAR(500) DEFAULT NULL,          -- Briefing Address Two
+    briefing_address_city   VARCHAR(255) DEFAULT NULL,          -- Briefing Address City
+    briefing_address_postal_code VARCHAR(20) DEFAULT NULL,      -- Briefing Address Postal Code
     contact_name            VARCHAR(255) DEFAULT NULL,
     contact_email           VARCHAR(255) DEFAULT NULL,
     contact_phone           VARCHAR(50)  DEFAULT NULL,
     enquiries_email         VARCHAR(255) DEFAULT NULL,
-    submission_address      TEXT         DEFAULT NULL,
+    submission_address      TEXT         DEFAULT NULL,          -- Submission Address One
+    submission_address_two  VARCHAR(500) DEFAULT NULL,          -- Submission Address Two
+    submission_address_city VARCHAR(255) DEFAULT NULL,          -- Submission Address City
+    submission_address_postal_code VARCHAR(20) DEFAULT NULL,    -- Submission Address Postal Code
 
     -- CIDB / B-BBEE requirements
     cidb_grade              VARCHAR(20)  DEFAULT NULL,   -- e.g. '5CE', '7GB'
@@ -415,11 +422,18 @@ CREATE TABLE IF NOT EXISTS published_tenders (
     compulsory_briefing     BOOLEAN      DEFAULT FALSE,
     briefing_date           DATE         DEFAULT NULL,
     briefing_venue          TEXT         DEFAULT NULL,
+    briefing_address_one    VARCHAR(500) DEFAULT NULL,   -- Briefing Address One (falls back to briefing_venue)
+    briefing_address_two    VARCHAR(500) DEFAULT NULL,   -- Briefing Address Two
+    briefing_address_city   VARCHAR(255) DEFAULT NULL,   -- Briefing Address City
+    briefing_address_postal_code VARCHAR(20) DEFAULT NULL, -- Briefing Address Postal Code
     contact_name            VARCHAR(255) DEFAULT NULL,
     contact_email           VARCHAR(255) DEFAULT NULL,
     contact_phone           VARCHAR(50)  DEFAULT NULL,
     enquiries_email         VARCHAR(255) DEFAULT NULL,
-    submission_address      TEXT         DEFAULT NULL,
+    submission_address      TEXT         DEFAULT NULL,   -- Submission Address One
+    submission_address_two  VARCHAR(500) DEFAULT NULL,   -- Submission Address Two
+    submission_address_city VARCHAR(255) DEFAULT NULL,   -- Submission Address City
+    submission_address_postal_code VARCHAR(20) DEFAULT NULL, -- Submission Address Postal Code
     cidb_grade              VARCHAR(20)  DEFAULT NULL,
     bbbee_requirement       VARCHAR(50)  DEFAULT NULL,
     local_content_pct       DECIMAL(5,2) DEFAULT NULL,
@@ -1158,6 +1172,81 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 -- briefing_json: structured briefing details (NTS optional briefing object)
 SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_json');
 SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_json JSON DEFAULT NULL AFTER briefing_venue','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ── Structured submission / briefing address columns ──────────────────────────
+-- Submission Address Two / City / Postal Code  (Address One = submission_address)
+-- Briefing Address One / Two / City / Postal Code (Address One falls back to briefing_venue)
+-- Added to BOTH raw_tenders and published_tenders so the values survive
+-- approval and can be pushed to the NTS submission/briefing objects.
+
+-- raw_tenders — submission address
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='submission_address_two');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN submission_address_two VARCHAR(500) DEFAULT NULL AFTER submission_address','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='submission_address_city');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN submission_address_city VARCHAR(255) DEFAULT NULL AFTER submission_address_two','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='submission_address_postal_code');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN submission_address_postal_code VARCHAR(20) DEFAULT NULL AFTER submission_address_city','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- raw_tenders — briefing address
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_address_one');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_address_one VARCHAR(500) DEFAULT NULL AFTER briefing_venue','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_address_two');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_address_two VARCHAR(500) DEFAULT NULL AFTER briefing_address_one','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_address_city');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_address_city VARCHAR(255) DEFAULT NULL AFTER briefing_address_two','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='raw_tenders' AND COLUMN_NAME='briefing_address_postal_code');
+SET @s=IF(@c=0,'ALTER TABLE raw_tenders ADD COLUMN briefing_address_postal_code VARCHAR(20) DEFAULT NULL AFTER briefing_address_city','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- published_tenders — submission / briefing JSON blobs (used by nts_push.php)
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='submission_json');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN submission_json JSON DEFAULT NULL AFTER submission_address','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='briefing_json');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN briefing_json JSON DEFAULT NULL AFTER briefing_venue','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- published_tenders — submission address
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='submission_address_two');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN submission_address_two VARCHAR(500) DEFAULT NULL AFTER submission_address','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='submission_address_city');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN submission_address_city VARCHAR(255) DEFAULT NULL AFTER submission_address_two','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='submission_address_postal_code');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN submission_address_postal_code VARCHAR(20) DEFAULT NULL AFTER submission_address_city','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- published_tenders — briefing address
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='briefing_address_one');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN briefing_address_one VARCHAR(500) DEFAULT NULL AFTER briefing_venue','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='briefing_address_two');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN briefing_address_two VARCHAR(500) DEFAULT NULL AFTER briefing_address_one','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='briefing_address_city');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN briefing_address_city VARCHAR(255) DEFAULT NULL AFTER briefing_address_two','SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c=(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='published_tenders' AND COLUMN_NAME='briefing_address_postal_code');
+SET @s=IF(@c=0,'ALTER TABLE published_tenders ADD COLUMN briefing_address_postal_code VARCHAR(20) DEFAULT NULL AFTER briefing_address_city','SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 -- ── New columns on published_tenders (NTS push tracking) ─────────────────────

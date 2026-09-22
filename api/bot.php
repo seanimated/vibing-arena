@@ -2,7 +2,24 @@
 /**
  * ============================================================================
  * SA Tender Portal — Bot Push API
- * File:    api/bot.php   |   Version 2.3 (auto source derivation)
+ * File:    api/bot.php   |   Version 2.4 (structured submission/briefing addresses)
+ *
+ * Changes vs 2.3:
+ *   - Captures the full submission / briefing address blocks, not just the
+ *     one-line address. New stored columns (raw_tenders):
+ *       submission_address_two, submission_address_city,
+ *       submission_address_postal_code,
+ *       briefing_address_one, briefing_address_two,
+ *       briefing_address_city, briefing_address_postal_code
+ *     (submission_address remains "Submission Address One"; briefing_address_one
+ *      falls back to the legacy briefing_venue value.)
+ *   - Each field is read from a flat top-level key OR the nested
+ *     submission/submission_details and briefing/briefing_data objects, so both
+ *     payload styles work:
+ *       flat:  submission_address_two / submissionAddressTwo / …
+ *       nested: submission.address_two / submission.city / submission.postal_code
+ *               briefing.address_one / briefing.address_city / …
+ *   - api_version bumped to 2.4-addresses.
  *
  * Changes vs 2.2:
  *   - derive_source_name() now covers international portals (UNDP, UNGM,
@@ -410,7 +427,7 @@ function handle_ping(PDO $db, string $botLabel): never {
         'bot_label'       => $botLabel,
         'server_time'     => date('c'),
         'scraper_enabled' => ($setting === 'true'),
-        'api_version'     => '2.3-auto-source',
+        'api_version'     => '2.4-addresses',
         'php_version'     => PHP_VERSION,
     ], 'Pong');
 }
@@ -547,8 +564,12 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             tender_type, fields_of_expertise, estimated_value, currency,
             closing_date, closing_time, published_date,
             compulsory_briefing, briefing_date, briefing_venue, briefing_json,
+            briefing_address_one, briefing_address_two,
+            briefing_address_city, briefing_address_postal_code,
             contact_name, contact_email, contact_phone, enquiries_email,
             submission_address, submission_json,
+            submission_address_two, submission_address_city,
+            submission_address_postal_code,
             cidb_grade, bbbee_requirement, local_content_pct,
             tender_document_url, tender_document_price, tender_image_url,
             raw_html_snippet, admin_status, scraped_at
@@ -559,8 +580,12 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             :tender_type, :fields_of_expertise, :estimated_value, :currency,
             :closing_date, :closing_time, :published_date,
             :compulsory_briefing, :briefing_date, :briefing_venue, :briefing_json,
+            :briefing_address_one, :briefing_address_two,
+            :briefing_address_city, :briefing_address_postal_code,
             :contact_name, :contact_email, :contact_phone, :enquiries_email,
             :submission_address, :submission_json,
+            :submission_address_two, :submission_address_city,
+            :submission_address_postal_code,
             :cidb_grade, :bbbee_requirement, :local_content_pct,
             :tender_document_url, :tender_document_price, :tender_image_url,
             :raw_html_snippet, 'Pending', NOW()
@@ -639,6 +664,30 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             $compulsory = !empty($compulsoryRaw) ? 1 : 0;
             if (!$compulsory && isset($briefingObj['briefing_compulsory'])) $compulsory = $briefingObj['briefing_compulsory'] ? 1 : 0;
             if (!$compulsory && isset($briefingObj['is_compulsory']))       $compulsory = $briefingObj['is_compulsory'] ? 1 : 0;
+
+            // Briefing structured address (flat fields or nested briefing object)
+            // Briefing Address One falls back to the legacy briefing_venue value.
+            $briefingAddrOne = sanitize(
+                safe_get($t, ['briefing_address_one', 'briefingAddressOne', 'briefing_address_1'])
+                    ?: safe_get($briefingObj, ['address_one', 'address', 'address1', 'address_line_one', 'venue']),
+                500
+            ) ?: null;
+            if (empty($briefingAddrOne)) $briefingAddrOne = $briefingVenue;
+            $briefingAddrTwo = sanitize(
+                safe_get($t, ['briefing_address_two', 'briefingAddressTwo', 'briefing_address_2'])
+                    ?: safe_get($briefingObj, ['address_two', 'address2', 'address_line_two']),
+                500
+            ) ?: null;
+            $briefingAddrCity = sanitize(
+                safe_get($t, ['briefing_address_city', 'briefingAddressCity', 'briefing_city', 'briefingCity'])
+                    ?: safe_get($briefingObj, ['address_city', 'city']),
+                255
+            ) ?: null;
+            $briefingAddrPostal = sanitize(
+                safe_get($t, ['briefing_address_postal_code', 'briefingAddressPostalCode', 'briefing_postal_code', 'briefing_postalcode', 'briefingPostalCode'])
+                    ?: safe_get($briefingObj, ['address_postal_code', 'postal_code', 'postalcode', 'zip', 'zip_code']),
+                20
+            ) ?: null;
 
             // Numeric fields
             $estValue = null;
@@ -738,6 +787,22 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                     ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address', 'address_one']) : null),
                 500
             ) ?: null;
+            // Submission Address Two / City / Postal Code (flat fields or nested object)
+            $submissionAddrTwo = sanitize(
+                safe_get($t, ['submission_address_two', 'submissionAddressTwo', 'submission_address_2', 'submission_address2'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_two', 'address2', 'address_line_two']) : null),
+                500
+            ) ?: null;
+            $submissionAddrCity = sanitize(
+                safe_get($t, ['submission_address_city', 'submissionAddressCity', 'submission_city', 'submissionCity'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_city', 'city']) : null),
+                255
+            ) ?: null;
+            $submissionAddrPostal = sanitize(
+                safe_get($t, ['submission_address_postal_code', 'submissionAddressPostalCode', 'submission_postal_code', 'submission_postalcode', 'submissionPostalCode'])
+                    ?: (is_array($submissionObj) ? safe_get($submissionObj, ['address_postal_code', 'postal_code', 'postalcode', 'zip', 'zip_code']) : null),
+                20
+            ) ?: null;
             $briefingJson   = !empty($briefingObj) ? safe_json_encode($briefingObj) : null;
 
             $enquiriesEmail = sanitize(safe_get($t, ['enquiries_email', 'enquiriesEmail', 'enquiries']), 255) ?: null;
@@ -774,12 +839,19 @@ function handle_push_tender(PDO $db, string $botLabel): never {
                 ':briefing_date'         => $briefingDate,
                 ':briefing_venue'        => $briefingVenue,
                 ':briefing_json'         => $briefingJson,
+                ':briefing_address_one'  => $briefingAddrOne,
+                ':briefing_address_two'  => $briefingAddrTwo,
+                ':briefing_address_city' => $briefingAddrCity,
+                ':briefing_address_postal_code' => $briefingAddrPostal,
                 ':contact_name'          => $contactName,
                 ':contact_email'         => $contactEmail,
                 ':contact_phone'         => $contactPhone,
                 ':enquiries_email'       => $enquiriesEmail,
                 ':submission_address'    => $submissionAddr,
                 ':submission_json'       => $submissionJson,
+                ':submission_address_two' => $submissionAddrTwo,
+                ':submission_address_city' => $submissionAddrCity,
+                ':submission_address_postal_code' => $submissionAddrPostal,
                 ':cidb_grade'            => $cidbGrade,
                 ':bbbee_requirement'     => $bbbeeReq,
                 ':local_content_pct'     => $localPct,
