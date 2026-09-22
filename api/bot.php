@@ -19,6 +19,8 @@
  *       flat:  submission_address_two / submissionAddressTwo / …
  *       nested: submission.address_two / submission.city / submission.postal_code
  *               briefing.address_one / briefing.address_city / …
+ *   - tender_document_price now defaults to 0 when the bot provides no value
+ *     (previously stored NULL).
  *   - api_version bumped to 2.4-addresses.
  *
  * Changes vs 2.2:
@@ -701,7 +703,7 @@ function handle_push_tender(PDO $db, string $botLabel): never {
             $localPct = null;
             $localRaw = safe_get($t, ['local_content_pct', 'localContentPct', 'local_content']);
             if (is_numeric($localRaw)) $localPct = round((float)$localRaw, 2);
-            $docPrice = null;
+            $docPrice = 0; // 0 by default unless the scraper returns a value
             $priceRaw = safe_get($t, ['tender_document_price', 'tenderDocumentPrice', 'document_price', 'fee']);
             if (is_numeric($priceRaw)) $docPrice = round((float)$priceRaw, 2);
 

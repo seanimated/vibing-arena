@@ -488,6 +488,9 @@
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
+          <div><label class="form-label">Tender Document Price</label><input x-model="editForm.tender_document_price" type="number" step="0.01" min="0" class="field w-full" placeholder="0"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
           <div><label class="form-label">Contact Email</label><input x-model="editForm.contact_email" type="email" class="field w-full"></div>
           <div><label class="form-label">Contact Phone</label><input x-model="editForm.contact_phone" type="text" class="field w-full"></div>
         </div>
@@ -863,7 +866,7 @@ function opsPage() {
     sort(col) { const a=`${col}_asc`,d=`${col}_desc`; this.sortBy=this.sortBy===a?d:a; this.fetchTenders(); },
     goPage(p) { if(p<1||p>this.totalPages) return; this.currentPage=p; this.fetchTenders(); },
     toggleSelectAll(e) { this.selected=e.target.checked?this.tenders.map(t=>t.id):[]; },
-    openDetail(t) { this.editForm={...t}; this.pdfPreviewOpen=false; this.detailOpen=true; },
+    openDetail(t) { this.editForm={...t}; if(this.editForm.tender_document_price==null||this.editForm.tender_document_price==='') this.editForm.tender_document_price=0; this.pdfPreviewOpen=false; this.detailOpen=true; },
 
     async saveTender() {
       this.saving=true;
